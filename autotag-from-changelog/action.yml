@@ -1,0 +1,13 @@
+name: Autotag from changelog
+description: Creates git tags from CHANGELOG.md versions. When there is content under [Unreleased], it fails only if the previous version is not yet tagged.
+inputs:
+  changelog-path:
+    description: Path to the changelog file
+    default: CHANGELOG.md
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        CHANGELOG_PATH: ${{ inputs.changelog-path }}
+      run: ${{ github.action_path }}/auto-tag-release.sh
