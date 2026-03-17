@@ -1,0 +1,5 @@
+# All source calls use dynamic $SCRIPT_DIR paths that shellcheck cannot resolve.
+disable=SC1091
+# Allow following sourced files and resolve relative paths from the script's directory.
+external-sources=true
+source-path=SCRIPTDIR

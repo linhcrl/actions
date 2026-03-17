@@ -1,0 +1,90 @@
+name: Validate CHANGELOG
+description: Validates CHANGELOG.md format, version ordering, and checks for breaking changes
+
+inputs:
+  changelog-path:
+    description: Path to CHANGELOG.md file
+    default: CHANGELOG.md
+  validation-depth:
+    description: How many changelog entries to validate starting from the top/most recent (default is 1)
+    default: '1'
+  check-mode:
+    description: 'Check mode for breaking change detection: "unreleased" (entire Unreleased section) or "diff" (only changes between base-ref and current HEAD). Does not affect format/version validation.'
+    default: 'unreleased'
+  base-ref:
+    description: 'Required when check-mode is "diff". The base branch to compare against for detecting breaking changes in the diff only (e.g., main, or github.event.pull_request.base.ref for PRs)'
+    default: ''
+
+outputs:
+  is_valid:
+    description: Whether the CHANGELOG format and version ordering are valid
+    value: ${{ steps.set-validity.outputs.is_valid }}
+  has_breaking:
+    description: Whether breaking changes were detected
+    value: ${{ steps.breaking-check.outputs.has_breaking }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate version ordering
+      id: version-order
+      continue-on-error: true
+      shell: bash
+      env:
+        CHANGELOG_PATH: ${{ inputs.changelog-path }}
+      run: ${{ github.action_path }}/validate_version_order.sh
+
+    - name: Validate CHANGELOG format
+      id: changelog
+      continue-on-error: true
+      uses: mindsers/changelog-reader-action@v2
+      with:
+        validation_level: error
+        validation_depth: ${{ inputs.validation-depth }}
+        path: ${{ inputs.changelog-path }}
+        version: Unreleased
+
+    - name: Set validity output
+      id: set-validity
+      shell: bash
+      run: |
+        source ${{ github.action_path }}/../actions_helpers.sh
+
+        version_result="${{ steps.version-order.outcome }}"
+        format_result="${{ steps.changelog.outcome }}"
+
+        if [ "$version_result" = "success" ] && [ "$format_result" = "success" ]; then
+          set_output is_valid true
+        else
+          set_output is_valid false
+        fi
+
+    - name: Check for breaking changes
+      id: breaking-check
+      shell: bash
+      env:
+        CHECK_MODE: ${{ inputs.check-mode }}
+        BASE_REF: ${{ inputs.base-ref }}
+        CHANGELOG_PATH: ${{ inputs.changelog-path }}
+        UNRELEASED_CONTENT: ${{ steps.changelog.outputs.changes }}
+      run: ${{ github.action_path }}/check_breaking_changes.sh
+
+    - name: Summary
+      shell: bash
+      run: |
+        echo "## CHANGELOG Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.set-validity.outputs.is_valid }}" = "true" ]; then
+          echo "CHANGELOG is valid" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**CHANGELOG validation failed**" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.breaking-check.outputs.has_breaking }}" = "true" ]; then
+          echo "**Breaking changes detected**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "No breaking changes" >> $GITHUB_STEP_SUMMARY
+        fi
