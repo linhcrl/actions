@@ -1,0 +1,81 @@
+name: Validate CHANGELOG
+description: Validates CHANGELOG.md format, version ordering, and checks for breaking changes
+
+inputs:
+  changelog-path:
+    description: Path to CHANGELOG.md file
+    default: CHANGELOG.md
+  validation-depth:
+    description: How many changelog entries to validate starting from the top/most recent (default is 1)
+    default: '1'
+  check-mode:
+    description: 'Check mode: "full" (entire Unreleased section) or "diff" (only PR changes)'
+    default: 'full'
+  base-ref:
+    description: 'Base branch ref for diff mode (e.g., github.event.pull_request.base.ref)'
+    default: ''
+
+outputs:
+  has_breaking:
+    description: Whether breaking changes were detected
+    value: ${{ steps.breaking-check.outputs.has_breaking }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate CHANGELOG format
+      id: changelog
+      uses: mindsers/changelog-reader-action@v2
+      with:
+        validation_level: error
+        validation_depth: ${{ inputs.validation-depth }}
+        path: ${{ inputs.changelog-path }}
+        version: Unreleased
+
+    - name: Validate version ordering
+      id: version-order
+      shell: bash
+      env:
+        CHANGELOG_PATH: ${{ inputs.changelog-path }}
+      run: ${{ github.action_path }}/validate_version_order.sh
+
+    - name: Check for breaking changes
+      id: breaking-check
+      shell: bash
+      run: |
+        check_mode="${{ inputs.check-mode }}"
+        base_ref="${{ inputs.base-ref }}"
+
+        if [ "$check_mode" = "diff" ] && [ -n "$base_ref" ]; then
+          echo "PR context detected: checking diff only"
+          # Get diff, filter to additions, remove file header, strip leading +
+          text_to_check=$(git diff origin/$base_ref HEAD -- ${{ inputs.changelog-path }} | grep "^+" | grep -v "^+++" | sed 's/^+//')
+        else
+          echo "Checking entire Unreleased section"
+          # Use the Unreleased section content from mindsers action
+          text_to_check='${{ steps.changelog.outputs.changes }}'
+        fi
+
+        if echo "$text_to_check" | grep -qE "[[:space:]]*- Breaking Change:"; then
+          echo "has_breaking=true" >> $GITHUB_OUTPUT
+          echo "Breaking changes detected"
+          echo "$text_to_check" | grep -E "[[:space:]]*- Breaking Change:"
+        else
+          echo "has_breaking=false" >> $GITHUB_OUTPUT
+          echo "No breaking changes detected"
+        fi
+
+    - name: Summary
+      shell: bash
+      run: |
+        echo "## CHANGELOG Validation Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "CHANGELOG.md format is valid" >> $GITHUB_STEP_SUMMARY
+        echo "Version and date ordering is correct" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.breaking-check.outputs.has_breaking }}" = "true" ]; then
+          echo "**Breaking changes detected**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "No breaking changes" >> $GITHUB_STEP_SUMMARY
+        fi

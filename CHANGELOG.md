@@ -12,3 +12,5 @@ Breaking changes are prefixed with "Breaking Change: ".
 
 - `autotag-from-changelog` action: tag and push from CHANGELOG.md version
   change.
+- `pr-changelog-check` action: validates CHANGELOG.md format, version ordering,
+  and detects breaking changes during PR checks.
