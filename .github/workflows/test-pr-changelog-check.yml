@@ -331,3 +331,210 @@ jobs:
             exit 1
           fi
           echo "✅ Breaking change with indentation detected correctly"
+
+  test-diff-mode-breaking-change:
+    name: Test Diff Mode - Breaking Change in PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup git config
+        run: |
+          git config user.name "Test User"
+          git config user.email "test@example.com"
+
+      - name: Create base CHANGELOG (simulating main branch)
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - Existing feature from before PR
+
+          ## [1.0.0] - 2024-01-01
+
+          ### Added
+          - Initial release
+          EOF
+          git add TEST_CHANGELOG.md
+          git commit -m "Base changelog"
+
+      - name: Modify CHANGELOG to add breaking change (simulating PR)
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - Existing feature from before PR
+          - New feature added in PR
+
+          ### Changed
+          - Breaking Change: API restructure added in PR
+
+          ## [1.0.0] - 2024-01-01
+
+          ### Added
+          - Initial release
+          EOF
+          git add TEST_CHANGELOG.md
+          git commit -m "Add breaking change in PR"
+
+      - name: Test action in diff mode
+        id: check
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+          check-mode: diff
+          base-ref: HEAD~1
+
+      - name: Verify breaking change detected in diff only
+        run: |
+          echo "has_breaking: ${{ steps.check.outputs.has_breaking }}"
+
+          if [[ "${{ steps.check.outputs.has_breaking }}" != "true" ]]; then
+            echo "❌ Expected has_breaking=true (breaking change in PR diff)"
+            exit 1
+          fi
+          echo "✅ Breaking change detected in PR diff"
+
+  test-diff-mode-no-breaking-change:
+    name: Test Diff Mode - No Breaking Change in PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup git config
+        run: |
+          git config user.name "Test User"
+          git config user.email "test@example.com"
+
+      - name: Create base CHANGELOG with breaking change
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Changed
+          - Breaking Change: This was already in main branch
+
+          ## [1.0.0] - 2024-01-01
+          EOF
+          git add TEST_CHANGELOG.md
+          git commit -m "Base changelog with breaking change"
+
+      - name: Modify CHANGELOG to add normal feature (simulating PR)
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - New feature added in PR (not breaking)
+
+          ### Changed
+          - Breaking Change: This was already in main branch
+
+          ## [1.0.0] - 2024-01-01
+          EOF
+          git add TEST_CHANGELOG.md
+          git commit -m "Add feature in PR"
+
+      - name: Test action in diff mode
+        id: check
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+          check-mode: diff
+          base-ref: HEAD~1
+
+      - name: Verify no breaking change in PR diff
+        run: |
+          echo "has_breaking: ${{ steps.check.outputs.has_breaking }}"
+
+          if [[ "${{ steps.check.outputs.has_breaking }}" != "false" ]]; then
+            echo "❌ Expected has_breaking=false (no breaking change in PR diff)"
+            exit 1
+          fi
+          echo "✅ Correctly detected no breaking changes in PR diff (even though breaking change exists in full changelog)"
+
+  test-diff-mode-vs-full-mode:
+    name: Test Diff Mode vs Full Mode Comparison
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup git config
+        run: |
+          git config user.name "Test User"
+          git config user.email "test@example.com"
+
+      - name: Create base CHANGELOG with breaking change
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Changed
+          - Breaking Change: Already existed before PR
+
+          ## [1.0.0] - 2024-01-01
+          EOF
+          git add TEST_CHANGELOG.md
+          git commit -m "Base changelog"
+
+      - name: Modify CHANGELOG to add feature (simulating PR)
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - New feature in PR
+
+          ### Changed
+          - Breaking Change: Already existed before PR
+
+          ## [1.0.0] - 2024-01-01
+          EOF
+          git add TEST_CHANGELOG.md
+          git commit -m "Add feature"
+
+      - name: Test action in FULL mode
+        id: check-full
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+          check-mode: full
+
+      - name: Test action in DIFF mode
+        id: check-diff
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+          check-mode: diff
+          base-ref: HEAD~1
+
+      - name: Verify different results for full vs diff mode
+        run: |
+          echo "Full mode has_breaking: ${{ steps.check-full.outputs.has_breaking }}"
+          echo "Diff mode has_breaking: ${{ steps.check-diff.outputs.has_breaking }}"
+
+          if [[ "${{ steps.check-full.outputs.has_breaking }}" != "true" ]]; then
+            echo "❌ Expected full mode to detect breaking change"
+            exit 1
+          fi
+
+          if [[ "${{ steps.check-diff.outputs.has_breaking }}" != "false" ]]; then
+            echo "❌ Expected diff mode to NOT detect breaking change (it was already in base)"
+            exit 1
+          fi
+
+          echo "✅ Full mode detected breaking change, diff mode did not - correct behavior!"
