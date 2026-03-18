@@ -1,0 +1,111 @@
+name: Extract Version from CHANGELOG
+description: Extracts current version and determines next version based on unreleased changes in CHANGELOG.md
+
+inputs:
+  changelog-path:
+    description: Path to CHANGELOG.md file
+    default: CHANGELOG.md
+
+outputs:
+  current_version:
+    description: Current latest released version
+    value: ${{ steps.latest.outputs.version }}
+  next_version:
+    description: Suggested next version based on unreleased changes
+    value: ${{ steps.calculate.outputs.next_version || steps.no-changes.outputs.next_version }}
+  bump_type:
+    description: Type of version bump (major/minor/patch/initial, or empty if no changes)
+    value: ${{ steps.determine-bump.outputs.bump_type || steps.no-changes.outputs.bump_type }}
+  has_unreleased:
+    description: Whether there are unreleased changes (true/false)
+    value: ${{ steps.check-unreleased.outputs.has_changes }}
+
+runs:
+  using: composite
+  steps:
+    - name: Read Unreleased section
+      id: unreleased
+      uses: mindsers/changelog-reader-action@v2
+      with:
+        validation_level: error
+        validation_depth: 1
+        path: ${{ inputs.changelog-path }}
+        version: Unreleased
+
+    - name: Read latest released version
+      id: latest-raw
+      continue-on-error: true
+      uses: mindsers/changelog-reader-action@v2
+      with:
+        path: ${{ inputs.changelog-path }}
+
+    - name: Set current version with fallback
+      id: latest
+      shell: bash
+      run: |
+        source ${{ github.action_path }}/../actions_helpers.sh
+        version="${{ steps.latest-raw.outputs.version }}"
+        if [ -z "$version" ] || [ "$version" = "null" ]; then
+          set_output "version" ""
+          log_notice "No released versions found"
+        else
+          set_output "version" "$version"
+          log_notice "Current version: $version"
+        fi
+
+    - name: Check if Unreleased has changes
+      id: check-unreleased
+      shell: bash
+      env:
+        CHANGES: ${{ steps.unreleased.outputs.changes }}
+      run: |
+        source ${{ github.action_path }}/../actions_helpers.sh
+        if [ -z "$CHANGES" ] || [ "$CHANGES" = "null" ] || [ "$CHANGES" = "" ]; then
+          set_output "has_changes" "false"
+          log_notice "No unreleased changes found"
+        else
+          set_output "has_changes" "true"
+          log_notice "Unreleased changes found"
+        fi
+
+    - name: Determine version bump type
+      id: determine-bump
+      if: steps.check-unreleased.outputs.has_changes == 'true'
+      shell: bash
+      env:
+        CURRENT_VERSION: ${{ steps.latest.outputs.version }}
+        UNRELEASED_CHANGES: ${{ steps.unreleased.outputs.changes }}
+      run: ${{ github.action_path }}/determine_bump_type.sh
+
+    - name: Calculate next version
+      id: calculate
+      if: steps.check-unreleased.outputs.has_changes == 'true'
+      shell: bash
+      env:
+        CURRENT_VERSION: ${{ steps.latest.outputs.version }}
+        BUMP_TYPE: ${{ steps.determine-bump.outputs.bump_type }}
+      run: ${{ github.action_path }}/calculate_next_version.sh
+
+    - name: Set outputs for no changes
+      id: no-changes
+      if: steps.check-unreleased.outputs.has_changes == 'false'
+      shell: bash
+      run: |
+        source ${{ github.action_path }}/../actions_helpers.sh
+        set_output "bump_type" ""
+        set_output "next_version" "${{ steps.latest.outputs.version }}"
+        log_notice "No version bump needed - no unreleased changes"
+
+    - name: Summary
+      shell: bash
+      run: |
+        echo "## Version Bump Analysis" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Current version:** ${{ steps.latest.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.check-unreleased.outputs.has_changes }}" = "true" ]; then
+          echo "**Next version:** ${{ steps.calculate.outputs.next_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Bump type:** ${{ steps.determine-bump.outputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**No unreleased changes** - no version bump needed" >> $GITHUB_STEP_SUMMARY
+        fi

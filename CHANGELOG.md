@@ -10,6 +10,8 @@ Breaking changes are prefixed with "Breaking Change: ".
 
 ### Added
 
+- `release-version-extract` action: extracts current version and determines next
+  version based on unreleased changes in CHANGELOG.md.
 - `changelog-check` action: validates CHANGELOG.md format, version ordering,
   and detects breaking changes.
 - `autotag-from-changelog` action: tag and push from CHANGELOG.md version

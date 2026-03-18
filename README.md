@@ -70,6 +70,43 @@ and detects breaking changes to enable automated version bump determination.
   - Presence of a `### Removed` section header
 - Supports checking entire Unreleased section or only PR diff
 
+### release-version-extract
+
+Extracts the current version from CHANGELOG.md and determines the next version
+based on unreleased changes. Analyzes changelog entries to automatically
+determine whether a major, minor, or patch version bump is needed.
+
+**Usage:**
+
+```yaml
+- uses: cockroachdb/actions/release-version-extract@v1
+  id: version
+- run: echo "Next version will be ${{ steps.version.outputs.next_version }}"
+```
+
+**Inputs:**
+
+| Name             | Default        | Description                |
+| ---------------- | -------------- | -------------------------- |
+| `changelog-path` | `CHANGELOG.md` | Path to the changelog file |
+
+**Outputs:**
+
+| Name              | Description                                                      |
+| ----------------- | ---------------------------------------------------------------- |
+| `current_version` | Current latest released version (empty if no releases)           |
+| `next_version`    | Suggested next version based on unreleased changes               |
+| `bump_type`       | Type of version bump (`major`/`minor`/`patch`/`initial`, or empty if no changes) |
+| `has_unreleased`  | Whether there are unreleased changes (`true`/`false`)            |
+
+**Features:**
+
+- Automatically determines version bump type from changelog entries
+- Detects major bumps when breaking changes are present (lines prefixed with `Breaking Change:` or `### Removed` section)
+- Handles initial releases (first release → 0.1.0)
+- Returns empty `bump_type` when there are no unreleased changes
+- Follows semantic versioning principles
+
 ## Development
 
 Run all tests locally:
