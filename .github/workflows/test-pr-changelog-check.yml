@@ -1,0 +1,333 @@
+name: Test PR Changelog Check
+
+on:
+  push:
+    branches:
+      - pr-changelog-check-action
+  workflow_dispatch:
+
+jobs:
+  test-valid-changelog:
+    name: Test Valid CHANGELOG Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create valid test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          All notable changes to this project will be documented in this file.
+
+          The format is based on [Keep a Changelog](https://keepachangelog.com/).
+
+          ## [Unreleased]
+
+          ### Added
+          - New feature
+
+          ## [1.2.0] - 2024-03-15
+
+          ### Added
+          - Previous feature
+
+          ## [1.1.0] - 2024-02-10
+
+          ### Fixed
+          - Bug fix
+          EOF
+
+      - name: Test action
+        id: check
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "has_breaking: ${{ steps.check.outputs.has_breaking }}"
+
+          if [[ "${{ steps.check.outputs.has_breaking }}" != "false" ]]; then
+            echo "❌ Expected has_breaking=false"
+            exit 1
+          fi
+          echo "✅ Valid changelog passed"
+
+  test-breaking-changes-full-mode:
+    name: Test Breaking Changes Detection (Full Mode)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with breaking changes
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Changed
+          - Breaking Change: API restructure
+          - Normal change
+
+          ## [1.0.0] - 2024-01-01
+          EOF
+
+      - name: Test action
+        id: check
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+          check-mode: full
+
+      - name: Verify outputs
+        run: |
+          echo "has_breaking: ${{ steps.check.outputs.has_breaking }}"
+
+          if [[ "${{ steps.check.outputs.has_breaking }}" != "true" ]]; then
+            echo "❌ Expected has_breaking=true"
+            exit 1
+          fi
+          echo "✅ Breaking changes detected correctly"
+
+  test-no-breaking-changes:
+    name: Test No Breaking Changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG without breaking changes
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - New feature
+
+          ### Fixed
+          - Bug fix
+
+          ## [1.0.0] - 2024-01-01
+          EOF
+
+      - name: Test action
+        id: check
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          if [[ "${{ steps.check.outputs.has_breaking }}" != "false" ]]; then
+            echo "❌ Expected has_breaking=false"
+            exit 1
+          fi
+          echo "✅ No breaking changes detected correctly"
+
+  test-version-ordering-valid:
+    name: Test Valid Version Ordering
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with proper version ordering
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ## [2.1.0] - 2024-03-15
+
+          ## [2.0.0] - 2024-02-01
+
+          ## [1.5.0] - 2024-01-20
+
+          ## [1.2.3] - 2024-01-15
+
+          ## [1.0.0] - 2024-01-01
+          EOF
+
+      - name: Test action
+        id: check
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify success
+        run: echo "✅ Version ordering validated successfully"
+
+  test-version-ordering-invalid:
+    name: Test Invalid Version Ordering (Should Fail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with incorrect version ordering
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ## [1.0.0] - 2024-03-15
+
+          ## [2.0.0] - 2024-02-01
+
+          ## [1.5.0] - 2024-01-15
+          EOF
+
+      - name: Test action (should fail)
+        id: check
+        continue-on-error: true
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify failure
+        run: |
+          if [[ "${{ steps.check.outcome }}" != "failure" ]]; then
+            echo "❌ Expected action to fail with invalid version ordering"
+            exit 1
+          fi
+          echo "✅ Invalid version ordering detected correctly"
+
+  test-date-ordering-invalid:
+    name: Test Invalid Date Ordering (Should Fail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with incorrect date ordering
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ## [2.0.0] - 2024-01-15
+
+          ## [1.0.0] - 2024-03-15
+          EOF
+
+      - name: Test action (should fail)
+        id: check
+        continue-on-error: true
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify failure
+        run: |
+          if [[ "${{ steps.check.outcome }}" != "failure" ]]; then
+            echo "❌ Expected action to fail with invalid date ordering"
+            exit 1
+          fi
+          echo "✅ Invalid date ordering detected correctly"
+
+  test-invalid-changelog-format:
+    name: Test Invalid CHANGELOG Format (Should Fail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create invalid CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # My Changelog
+
+          This is not a valid Keep a Changelog format.
+
+          Version 1.0.0
+          - Added something
+          EOF
+
+      - name: Test action (should fail)
+        id: check
+        continue-on-error: true
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify failure
+        run: |
+          if [[ "${{ steps.check.outcome }}" != "failure" ]]; then
+            echo "❌ Expected action to fail with invalid changelog format"
+            exit 1
+          fi
+          echo "✅ Invalid changelog format detected correctly"
+
+  test-multiple-versions-validation:
+    name: Test Multiple Version Validation Depth
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with multiple versions
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - Feature 1
+
+          ## [2.0.0] - 2024-03-15
+
+          ### Added
+          - Feature 2
+
+          ## [1.0.0] - 2024-01-15
+
+          ### Added
+          - Initial release
+          EOF
+
+      - name: Test action with validation-depth=2
+        id: check
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+          validation-depth: '2'
+
+      - name: Verify success
+        run: echo "✅ Multiple versions validated successfully"
+
+  test-breaking-change-indentation:
+    name: Test Breaking Change with Different Indentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with indented breaking change
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Changed
+          - Breaking Change: Removed deprecated API
+            - This is a sub-point
+          - Normal change
+
+          ## [1.0.0] - 2024-01-01
+          EOF
+
+      - name: Test action
+        id: check
+        uses: ./pr-changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify breaking change detected
+        run: |
+          if [[ "${{ steps.check.outputs.has_breaking }}" != "true" ]]; then
+            echo "❌ Expected has_breaking=true"
+            exit 1
+          fi
+          echo "✅ Breaking change with indentation detected correctly"
