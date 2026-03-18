@@ -337,14 +337,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup git config
         run: |
           git config user.name "Test User"
           git config user.email "test@example.com"
 
-      - name: Create base CHANGELOG (simulating main branch)
+      - name: Create test-base branch (simulating main)
         run: |
+          git checkout -b test-base
           cat > TEST_CHANGELOG.md << 'EOF'
           # Changelog
 
@@ -360,9 +363,11 @@ jobs:
           EOF
           git add TEST_CHANGELOG.md
           git commit -m "Base changelog"
+          git push origin test-base
 
-      - name: Modify CHANGELOG to add breaking change (simulating PR)
+      - name: Create PR branch with breaking change
         run: |
+          git checkout -b test-pr
           cat > TEST_CHANGELOG.md << 'EOF'
           # Changelog
 
@@ -389,7 +394,7 @@ jobs:
         with:
           changelog-path: TEST_CHANGELOG.md
           check-mode: diff
-          base-ref: HEAD~1
+          base-ref: test-base
 
       - name: Verify breaking change detected in diff only
         run: |
@@ -406,14 +411,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup git config
         run: |
           git config user.name "Test User"
           git config user.email "test@example.com"
 
-      - name: Create base CHANGELOG with breaking change
+      - name: Create test-base-2 branch with breaking change
         run: |
+          git checkout -b test-base-2
           cat > TEST_CHANGELOG.md << 'EOF'
           # Changelog
 
@@ -426,9 +434,11 @@ jobs:
           EOF
           git add TEST_CHANGELOG.md
           git commit -m "Base changelog with breaking change"
+          git push origin test-base-2
 
-      - name: Modify CHANGELOG to add normal feature (simulating PR)
+      - name: Create PR branch with normal feature
         run: |
+          git checkout -b test-pr-2
           cat > TEST_CHANGELOG.md << 'EOF'
           # Changelog
 
@@ -451,7 +461,7 @@ jobs:
         with:
           changelog-path: TEST_CHANGELOG.md
           check-mode: diff
-          base-ref: HEAD~1
+          base-ref: test-base-2
 
       - name: Verify no breaking change in PR diff
         run: |
@@ -468,14 +478,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup git config
         run: |
           git config user.name "Test User"
           git config user.email "test@example.com"
 
-      - name: Create base CHANGELOG with breaking change
+      - name: Create test-base-3 branch with breaking change
         run: |
+          git checkout -b test-base-3
           cat > TEST_CHANGELOG.md << 'EOF'
           # Changelog
 
@@ -488,9 +501,11 @@ jobs:
           EOF
           git add TEST_CHANGELOG.md
           git commit -m "Base changelog"
+          git push origin test-base-3
 
-      - name: Modify CHANGELOG to add feature (simulating PR)
+      - name: Create PR branch with feature
         run: |
+          git checkout -b test-pr-3
           cat > TEST_CHANGELOG.md << 'EOF'
           # Changelog
 
@@ -520,7 +535,7 @@ jobs:
         with:
           changelog-path: TEST_CHANGELOG.md
           check-mode: diff
-          base-ref: HEAD~1
+          base-ref: test-base-3
 
       - name: Verify different results for full vs diff mode
         run: |
