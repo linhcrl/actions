@@ -1,0 +1,310 @@
+name: Test Release Version Extract
+
+on:
+  push:
+    branches:
+      - release-version-extract
+  workflow_dispatch:
+
+jobs:
+  test-initial-release:
+    name: Test Initial Release (0.0.0 → 0.1.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          All notable changes to this project will be documented in this file.
+
+          ## [Unreleased]
+
+          ### Added
+          - Initial feature
+          EOF
+
+      - name: Test action
+        id: version
+        uses: ./release-version-extract
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "Current: ${{ steps.version.outputs.current_version }}"
+          echo "Next: ${{ steps.version.outputs.next_version }}"
+          echo "Bump: ${{ steps.version.outputs.bump_type }}"
+          echo "Has unreleased: ${{ steps.version.outputs.has_unreleased }}"
+
+          # Assertions
+          if [[ "${{ steps.version.outputs.current_version }}" != "" ]]; then
+            echo "❌ Expected current_version=(empty), got ${{ steps.version.outputs.current_version }}"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.next_version }}" != "0.1.0" ]]; then
+            echo "❌ Expected next_version=0.1.0, got ${{ steps.version.outputs.next_version }}"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.bump_type }}" != "initial" ]]; then
+            echo "❌ Expected bump_type=initial, got ${{ steps.version.outputs.bump_type }}"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.has_unreleased }}" != "true" ]]; then
+            echo "❌ Expected has_unreleased=true, got ${{ steps.version.outputs.has_unreleased }}"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-major-bump:
+    name: Test Major Bump (1.2.3 → 2.0.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Changed
+          - Breaking Change: New API structure
+
+          ## [1.2.3] - 2024-01-15
+
+          ### Added
+          - Previous feature
+          EOF
+
+      - name: Test action
+        id: version
+        uses: ./release-version-extract
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "Current: ${{ steps.version.outputs.current_version }}"
+          echo "Next: ${{ steps.version.outputs.next_version }}"
+          echo "Bump: ${{ steps.version.outputs.bump_type }}"
+
+          if [[ "${{ steps.version.outputs.current_version }}" != "1.2.3" ]]; then
+            echo "❌ Expected current_version=1.2.3"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.next_version }}" != "2.0.0" ]]; then
+            echo "❌ Expected next_version=2.0.0"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.bump_type }}" != "major" ]]; then
+            echo "❌ Expected bump_type=major"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-minor-bump:
+    name: Test Minor Bump (1.2.3 → 1.3.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - New feature without breaking changes
+
+          ## [1.2.3] - 2024-01-15
+
+          ### Fixed
+          - Previous fix
+          EOF
+
+      - name: Test action
+        id: version
+        uses: ./release-version-extract
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "Current: ${{ steps.version.outputs.current_version }}"
+          echo "Next: ${{ steps.version.outputs.next_version }}"
+          echo "Bump: ${{ steps.version.outputs.bump_type }}"
+
+          if [[ "${{ steps.version.outputs.next_version }}" != "1.3.0" ]]; then
+            echo "❌ Expected next_version=1.3.0"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.bump_type }}" != "minor" ]]; then
+            echo "❌ Expected bump_type=minor"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-patch-bump:
+    name: Test Patch Bump (1.2.3 → 1.2.4)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Fixed
+          - Bug fix
+
+          ## [1.2.3] - 2024-01-15
+          EOF
+
+      - name: Test action
+        id: version
+        uses: ./release-version-extract
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "Current: ${{ steps.version.outputs.current_version }}"
+          echo "Next: ${{ steps.version.outputs.next_version }}"
+          echo "Bump: ${{ steps.version.outputs.bump_type }}"
+
+          if [[ "${{ steps.version.outputs.next_version }}" != "1.2.4" ]]; then
+            echo "❌ Expected next_version=1.2.4"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.bump_type }}" != "patch" ]]; then
+            echo "❌ Expected bump_type=patch"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-security-patch:
+    name: Test Security Patch (1.2.3 → 1.2.4)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Security
+          - Security fix for CVE-2024-1234
+
+          ## [1.2.3] - 2024-01-15
+          EOF
+
+      - name: Test action
+        id: version
+        uses: ./release-version-extract
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          if [[ "${{ steps.version.outputs.next_version }}" != "1.2.4" ]]; then
+            echo "❌ Expected next_version=1.2.4"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.bump_type }}" != "patch" ]]; then
+            echo "❌ Expected bump_type=patch"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-no-changes:
+    name: Test No Changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ## [1.2.3] - 2024-01-15
+
+          ### Added
+          - Previous feature
+          EOF
+
+      - name: Test action
+        id: version
+        uses: ./release-version-extract
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "Current: ${{ steps.version.outputs.current_version }}"
+          echo "Bump: ${{ steps.version.outputs.bump_type }}"
+          echo "Has unreleased: ${{ steps.version.outputs.has_unreleased }}"
+
+          if [[ "${{ steps.version.outputs.bump_type }}" != "" ]]; then
+            echo "❌ Expected bump_type=(empty), got ${{ steps.version.outputs.bump_type }}"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.has_unreleased }}" != "false" ]]; then
+            echo "❌ Expected has_unreleased=false"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-multiple-categories:
+    name: Test Multiple Categories (Changed + Deprecated = minor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Changed
+          - Updated API response format
+
+          ### Deprecated
+          - Old API endpoint
+
+          ## [1.2.3] - 2024-01-15
+          EOF
+
+      - name: Test action
+        id: version
+        uses: ./release-version-extract
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          if [[ "${{ steps.version.outputs.next_version }}" != "1.3.0" ]]; then
+            echo "❌ Expected next_version=1.3.0 (minor)"
+            exit 1
+          fi
+          if [[ "${{ steps.version.outputs.bump_type }}" != "minor" ]]; then
+            echo "❌ Expected bump_type=minor"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
