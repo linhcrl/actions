@@ -1,0 +1,286 @@
+name: Test Changelog Check
+
+on:
+  push:
+    branches:
+      - pr-changelog-check-action
+  workflow_dispatch:
+
+jobs:
+  test-valid-changelog:
+    name: Test Valid Changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create valid test CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          All notable changes to this project will be documented in this file.
+
+          ## [Unreleased]
+
+          ### Added
+          - New feature
+
+          ## [1.0.0] - 2024-01-15
+
+          ### Added
+          - Initial release
+          EOF
+
+      - name: Test action
+        id: validate
+        uses: ./changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "Valid: ${{ steps.validate.outputs.is_valid }}"
+          echo "Breaking: ${{ steps.validate.outputs.has_breaking }}"
+
+          if [[ "${{ steps.validate.outputs.is_valid }}" != "true" ]]; then
+            echo "❌ Expected is_valid=true"
+            exit 1
+          fi
+          if [[ "${{ steps.validate.outputs.has_breaking }}" != "false" ]]; then
+            echo "❌ Expected has_breaking=false"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-breaking-change:
+    name: Test Breaking Change Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with breaking change
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Changed
+          - Breaking Change: New API structure
+
+          ## [1.0.0] - 2024-01-15
+
+          ### Added
+          - Initial release
+          EOF
+
+      - name: Test action
+        id: validate
+        uses: ./changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "Valid: ${{ steps.validate.outputs.is_valid }}"
+          echo "Breaking: ${{ steps.validate.outputs.has_breaking }}"
+
+          if [[ "${{ steps.validate.outputs.has_breaking }}" != "true" ]]; then
+            echo "❌ Expected has_breaking=true"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-removed-section:
+    name: Test Removed Section Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with Removed section
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Removed
+          - Deprecated API endpoints
+
+          ## [1.0.0] - 2024-01-15
+
+          ### Added
+          - Initial release
+          EOF
+
+      - name: Test action
+        id: validate
+        uses: ./changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          if [[ "${{ steps.validate.outputs.has_breaking }}" != "true" ]]; then
+            echo "❌ Expected has_breaking=true (Removed section should trigger)"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-invalid-version-order:
+    name: Test Invalid Version Order
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with invalid version order
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ## [0.1.0] - 2024-01-15
+
+          ### Added
+          - Feature
+
+          ## [1.0.0] - 2024-01-20
+
+          ### Added
+          - Initial release
+          EOF
+
+      - name: Test action (should fail validation)
+        id: validate
+        continue-on-error: true
+        uses: ./changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+
+      - name: Verify outputs
+        run: |
+          echo "Valid: ${{ steps.validate.outputs.is_valid }}"
+
+          if [[ "${{ steps.validate.outputs.is_valid }}" != "false" ]]; then
+            echo "❌ Expected is_valid=false (versions out of order)"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-diff-mode:
+    name: Test Diff Mode
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup git repo with base CHANGELOG
+        run: |
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - Existing feature
+
+          ## [1.0.0] - 2024-01-15
+
+          ### Added
+          - Initial release
+          EOF
+
+          git add TEST_CHANGELOG.md
+          git commit -m "Base changelog"
+
+      - name: Create base branch
+        run: |
+          git branch base-branch
+          git checkout -b feature-branch
+
+      - name: Add breaking change to CHANGELOG
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - Existing feature
+
+          ### Changed
+          - Breaking Change: API restructure
+
+          ## [1.0.0] - 2024-01-15
+
+          ### Added
+          - Initial release
+          EOF
+
+          git add TEST_CHANGELOG.md
+          git commit -m "Add breaking change"
+
+      - name: Test action in diff mode
+        id: validate
+        uses: ./changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+          check-mode: diff
+          base-ref: base-branch
+
+      - name: Verify outputs
+        run: |
+          echo "Breaking: ${{ steps.validate.outputs.has_breaking }}"
+
+          if [[ "${{ steps.validate.outputs.has_breaking }}" != "true" ]]; then
+            echo "❌ Expected has_breaking=true in diff mode"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
+
+  test-validation-depth:
+    name: Test Validation Depth
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CHANGELOG with multiple versions
+        run: |
+          cat > TEST_CHANGELOG.md << 'EOF'
+          # Changelog
+
+          ## [Unreleased]
+
+          ### Added
+          - New feature
+
+          ## [2.0.0] - 2024-03-15
+
+          ### Added
+          - Recent release
+
+          ## [1.0.0] - 2024-01-15
+
+          ### Added
+          - Initial release
+          EOF
+
+      - name: Test action with validation depth
+        id: validate
+        uses: ./changelog-check
+        with:
+          changelog-path: TEST_CHANGELOG.md
+          validation-depth: 2
+
+      - name: Verify outputs
+        run: |
+          echo "Valid: ${{ steps.validate.outputs.is_valid }}"
+
+          if [[ "${{ steps.validate.outputs.is_valid }}" != "true" ]]; then
+            echo "❌ Expected is_valid=true"
+            exit 1
+          fi
+          echo "✅ All assertions passed"
