@@ -1,0 +1,51 @@
+name: Changelog Check
+
+on:
+  pull_request:
+    branches:
+      - main  # adjust to your default branch
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write  # Needed to post comments
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for diff mode
+
+      - name: Validate Changelog
+        id: changelog-check
+        uses: ./changelog-check
+        with:
+          check-mode: diff
+          base-ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Find existing changelog comment
+        if: always()  # Run regardless of breaking change status
+        uses: peter-evans/find-comment@v4
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: "<!-- changelog-breaking-changes -->"
+
+      - name: Comment on breaking changes
+        if: always()  # Run regardless of breaking change status
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          edit-mode: replace
+          body: |
+            <!-- changelog-breaking-changes -->
+            ${{ steps.changelog-check.outputs.has_breaking == 'true' &&
+            '**This PR contains breaking changes.** Please ensure this is intentional and properly documented.' ||
+            'No breaking changes detected.' }}
+
+      - name: Fail if invalid
+        if: steps.changelog-check.outputs.is_valid != 'true'
+        run: |
+          echo "::error::CHANGELOG validation failed. Please fix the CHANGELOG.md format."
+          exit 1

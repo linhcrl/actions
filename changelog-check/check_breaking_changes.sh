@@ -17,7 +17,7 @@ unreleased_content="${UNRELEASED_CONTENT:-}"
 if [ "$check_mode" = "diff" ] && [ -n "$base_ref" ]; then
   log_notice "Diff mode: checking changelog changes only"
   # Get diff, filter to additions, remove file header, strip leading +
-  text_to_check=$(git diff "$base_ref" HEAD -- "$changelog" | grep "^+" | grep --invert-match "^+++" | sed 's/^+//')
+  text_to_check=$(git diff "origin/$base_ref" HEAD -- "$changelog" | grep "^+" | grep --invert-match "^+++" | sed 's/^+//')
 else
   log_notice "Checking entire Unreleased section"
   # Use the Unreleased section content from mindsers action

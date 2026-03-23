@@ -16,3 +16,16 @@ Breaking changes are prefixed with "Breaking Change: ".
   and detects breaking changes.
 - `autotag-from-changelog` action: tag and push from CHANGELOG.md version
   change.
+
+### Removed
+
+- Removed something to check workflow
+
+## [1.0.0] - 2026-03-06
+
+### Added
+
+- CHANGELOG.md and backfilled tags and changes.
+- Egress private endpoint management commands
+- Cluster disruption simulation commands
+- Physical replication stream management commands
