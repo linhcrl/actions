@@ -111,7 +111,7 @@ expect_success "unreleased mode: Removed section with other sections" test_remov
 # =============================================
 
 # Initialize git repo for diff tests
-git init > /dev/null 2>&1
+git init
 git config user.email "test@example.com"
 git config user.name "Test User"
 
@@ -131,15 +131,15 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Initial commit" > /dev/null 2>&1
+git commit -m "Initial commit"
 git branch -M main
 
 # Set up origin remote and fetch to create tracking branch (simulates production)
-git remote add origin . > /dev/null 2>&1
-git fetch origin > /dev/null 2>&1
+git remote add origin .
+git fetch origin
 
 # Create a feature branch
-git checkout -b feature-branch > /dev/null 2>&1
+git checkout -b feature-branch
 
 # --- Diff mode: Add non-breaking change ---
 # This creates a diff with only + lines for non-breaking content
@@ -159,7 +159,7 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Add non-breaking feature" > /dev/null 2>&1
+git commit -m "Add non-breaking feature"
 
 # Verify what the diff looks like (for test clarity)
 # git diff main HEAD -- CHANGELOG.md should show:
@@ -196,7 +196,7 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Add breaking change" > /dev/null 2>&1
+git commit -m "Add breaking change"
 
 # Verify what the diff looks like (for test clarity)
 # git diff main HEAD -- CHANGELOG.md should show:
@@ -217,7 +217,7 @@ expect_success "diff mode: breaking change in additions" test_diff_has_breaking
 
 # --- Diff mode: Breaking change exists in base, not in PR diff ---
 # Reset to a state where main has a breaking change
-git checkout main > /dev/null 2>&1
+git checkout main
 cat <<'EOF' > CHANGELOG.md
 # Changelog
 
@@ -236,11 +236,11 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Add breaking change to main" > /dev/null 2>&1
-git fetch origin > /dev/null 2>&1
+git commit -m "Add breaking change to main"
+git fetch origin
 
 # Create new feature branch from updated main
-git checkout -b feature-no-breaking > /dev/null 2>&1
+git checkout -b feature-no-breaking
 
 # Add only non-breaking content
 cat <<'EOF' > CHANGELOG.md
@@ -262,7 +262,7 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Add non-breaking feature to PR" > /dev/null 2>&1
+git commit -m "Add non-breaking feature to PR"
 
 # The diff from main should only show:
 # +- PR adds this non-breaking feature
@@ -279,7 +279,7 @@ test_diff_breaking_in_base_not_in_pr() {
 expect_success "diff mode: breaking change in base but not in PR additions" test_diff_breaking_in_base_not_in_pr
 
 # --- Diff mode: Removal and addition (complex diff) ---
-git checkout main > /dev/null 2>&1
+git checkout main
 cat <<'EOF' > CHANGELOG.md
 # Changelog
 
@@ -296,9 +296,9 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Update main with removable feature" > /dev/null 2>&1
+git commit -m "Update main with removable feature"
 
-git checkout -b feature-replace > /dev/null 2>&1
+git checkout -b feature-replace
 
 # Remove one line and add another with breaking change
 cat <<'EOF' > CHANGELOG.md
@@ -317,7 +317,7 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Replace feature with breaking change" > /dev/null 2>&1
+git commit -m "Replace feature with breaking change"
 
 # Diff should show:
 # -- Feature that will be removed
@@ -335,7 +335,7 @@ test_diff_with_removal_and_breaking_addition() {
 expect_success "diff mode: removal and breaking addition" test_diff_with_removal_and_breaking_addition
 
 # --- Diff mode: Breaking change is removed ---
-git checkout main > /dev/null 2>&1
+git checkout main
 cat <<'EOF' > CHANGELOG.md
 # Changelog
 
@@ -354,9 +354,9 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Add breaking change to main that will be removed" > /dev/null 2>&1
+git commit -m "Add breaking change to main that will be removed"
 
-git checkout -b feature-remove-breaking > /dev/null 2>&1
+git checkout -b feature-remove-breaking
 
 # Remove the breaking change entry
 cat <<'EOF' > CHANGELOG.md
@@ -375,7 +375,7 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Remove breaking change and add non-breaking feature" > /dev/null 2>&1
+git commit -m "Remove breaking change and add non-breaking feature"
 
 # Diff should show:
 # +- Non-breaking feature added
@@ -395,7 +395,7 @@ test_diff_breaking_removed() {
 expect_success "diff mode: breaking change removed in PR" test_diff_breaking_removed
 
 # --- Diff mode: Removed section added in PR ---
-git checkout main > /dev/null 2>&1
+git checkout main
 cat <<'EOF' > CHANGELOG.md
 # Changelog
 
@@ -411,9 +411,9 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Main without Removed section" > /dev/null 2>&1
+git commit -m "Main without Removed section"
 
-git checkout -b feature-add-removed > /dev/null 2>&1
+git checkout -b feature-add-removed
 
 cat <<'EOF' > CHANGELOG.md
 # Changelog
@@ -433,7 +433,7 @@ cat <<'EOF' > CHANGELOG.md
 EOF
 
 git add CHANGELOG.md
-git commit -m "Add Removed section" > /dev/null 2>&1
+git commit -m "Add Removed section"
 
 # Diff should show the new Removed section
 reset_output
@@ -445,6 +445,28 @@ test_diff_removed_section() {
   check_has_breaking "true"
 }
 expect_success "diff mode: Removed section added in PR" test_diff_removed_section
+
+# --- Diff mode: No CHANGELOG changes at all ---
+# Main is already in the state we need from previous test
+git checkout main
+git checkout -b feature-no-changelog-changes
+
+# Make changes to other files but NOT CHANGELOG
+echo "some code" > code.txt
+git add code.txt
+git commit -m "Change code but not changelog"
+
+# Diff should be empty for CHANGELOG.md
+# Script should not fail and should report no breaking changes
+reset_output
+test_diff_no_changelog_changes() {
+  env CHECK_MODE=diff \
+      BASE_REF=main \
+      CHANGELOG_PATH=CHANGELOG.md \
+      "$SCRIPT_DIR/check_breaking_changes.sh"
+  check_has_breaking "false"
+}
+expect_success "diff mode: no CHANGELOG changes at all" test_diff_no_changelog_changes
 
 echo ""
 echo "All tests passed!"

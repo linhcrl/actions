@@ -8,6 +8,8 @@ Breaking changes are prefixed with "Breaking Change: ".
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-03-23
+
 ### Added
 
 - `release-version-extract` action: extracts current version and determines next
