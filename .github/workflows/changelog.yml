@@ -23,14 +23,25 @@ jobs:
           check-mode: diff
           base-ref: ${{ github.event.pull_request.base.ref }}
 
+      - name: Find existing changelog comment
+        if: always()  # Run regardless of breaking change status
+        uses: peter-evans/find-comment@v4
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body-includes: "<!-- changelog-breaking-changes -->"
+
       - name: Comment on breaking changes
         if: always()  # Run regardless of breaking change status
         uses: peter-evans/create-or-update-comment@v5
         with:
           issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          edit-mode: replace
           body: |
+            <!-- changelog-breaking-changes -->
             ${{ steps.changelog-check.outputs.has_breaking == 'true' &&
-            '**This PR contains breaking changes**\n\nPlease ensure this is intentional and properly documented.' ||
+            '**This PR contains breaking changes.** Please ensure this is intentional and properly documented.' ||
             'No breaking changes detected.' }}
 
       - name: Fail if invalid
