@@ -8,6 +8,10 @@ Breaking changes are prefixed with "Breaking Change: ".
 
 ## [Unreleased]
 
+### Added
+
+- Breaking Change: random text
+
 ## [0.1.0] - 2026-03-23
 
 ### Added

@@ -1,0 +1,68 @@
+name: Changelog Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write  # Needed to post comments
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # Needed for diff mode
+
+      - name: Validate Changelog
+        id: changelog-check
+        uses: cockroachdb/actions/changelog-check@v0.1.0
+        with:
+          check-mode: diff
+          base-ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Find existing changelog comments
+        id: find-comments
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cids="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${{ github.event.pull_request.number }}/comments" \
+            --jq 'map(select(.body | contains("<!-- changelog-change-status -->"))) | map(.id) | join(" ")')"
+
+          echo "comment-ids=$cids" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on breaking changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_IDS: ${{ steps.find-comments.outputs.comment-ids }}
+          HAS_BREAKING: ${{ steps.changelog-check.outputs.has_breaking }}
+        run: |
+          set -euo pipefail
+          marker='<!-- changelog-change-status -->'
+
+          if [[ "$HAS_BREAKING" == "true" ]]; then
+            msg='**This PR contains breaking changes.** Breaking changes to the CLI may impact users. Please ensure this is intentional and properly documented.'
+          else
+            msg='No breaking changes detected.'
+          fi
+
+          body_content="${marker}"$'\n'"${msg}"
+
+          if [[ -n "${COMMENT_IDS:-}" ]]; then
+            # Update all existing comments with the marker
+            for cid in $COMMENT_IDS; do
+              gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${cid}" --raw-field "body=${body_content}"
+            done
+          else
+            # Create a new comment if none exist
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --raw-field "body=${body_content}"
+          fi
+
+      - name: Fail if invalid
+        if: steps.changelog-check.outputs.is_valid != 'true'
+        run: |
+          echo "::error::CHANGELOG validation failed. Please fix the CHANGELOG.md format."
+          exit 1
