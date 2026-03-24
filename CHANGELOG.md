@@ -10,6 +10,12 @@ Breaking changes are prefixed with "Breaking Change: ".
 
 ### Added
 
+- Breaking Change: random text
+
+## [0.1.0] - 2026-03-23
+
+### Added
+
 - `release-version-extract` action: extracts current version and determines next
   version based on unreleased changes in CHANGELOG.md.
 - `changelog-check` action: validates CHANGELOG.md format, version ordering,

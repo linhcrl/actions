@@ -38,13 +38,13 @@ run_test() {
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-git config user.email >/dev/null 2>&1 || git config --global user.email "test@test.com"
-git config user.name >/dev/null 2>&1 || git config --global user.name "test"
-git init --bare --initial-branch=main "$TMPDIR/origin.git" >/dev/null
-git clone "$TMPDIR/origin.git" "$TMPDIR/work" >/dev/null
+git config user.email || git config --global user.email "test@test.com"
+git config user.name || git config --global user.name "test"
+git init --bare --initial-branch=main "$TMPDIR/origin.git"
+git clone "$TMPDIR/origin.git" "$TMPDIR/work"
 cd "$TMPDIR/work"
-git commit --allow-empty -m "initial" >/dev/null
-git push origin main >/dev/null
+git commit --allow-empty -m "initial"
+git push origin main
 
 # =============================================
 # parse_changelog unit tests
@@ -181,7 +181,7 @@ run_test "creates new tag" 0 "Tagged v1.0.0 successfully" \
   env CHANGELOG_PATH=CHANGELOG.md "$SCRIPT_DIR/auto-tag-release.sh"
 
 # Verify the tag was actually created
-if git rev-parse v1.0.0 >/dev/null 2>&1; then
+if git rev-parse v1.0.0; then
   echo "PASS: tag v1.0.0 exists"
   PASS=$((PASS + 1))
 else
