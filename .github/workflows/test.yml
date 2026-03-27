@@ -8,4 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: ./test.sh
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: autosolve/go.mod
+      - name: Run shell tests
+        run: ./test.sh
+      - name: Run Go tests
+        run: cd autosolve && go test ./... -count=1

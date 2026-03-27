@@ -48,6 +48,11 @@ Breaking changes are prefixed with "Breaking Change: ".
 - `autotag-from-changelog` now exposes `tag_created` and `tag` outputs so
   callers can react to whether a new tag was pushed.
 - `expect_step_output` test helper for asserting GitHub Actions step outputs.
+- `autosolve/assess` action: evaluate tasks for automated resolution suitability
+  using Claude in read-only mode.
+- `autosolve/implement` action: autonomously implement solutions, validate
+  security, push to fork, and create PRs using Claude. Includes AI security
+  review, token usage tracking, and per-file batched diff analysis.
 - `get-workflow-ref` action: resolve the ref a caller used to invoke a reusable
   workflow by parsing the caller's workflow file — no API calls or extra
   permissions needed.

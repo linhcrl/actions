@@ -1,0 +1,87 @@
+name: Autosolve Assess
+description: Run Claude in read-only mode to assess whether a task is suitable for automated resolution.
+
+inputs:
+  claude_cli_version:
+    description: "Claude CLI version to install (e.g. '2.1.79' or 'latest')."
+    required: false
+    default: "2.1.79"
+  prompt:
+    description: The task to assess. Plain text instructions describing what needs to be done.
+    required: false
+    default: ""
+  skill:
+    description: Path to a skill/prompt file relative to the repo root.
+    required: false
+    default: ""
+  additional_instructions:
+    description: Extra context appended after the task prompt but before the assessment footer.
+    required: false
+    default: ""
+  assessment_criteria:
+    description: Custom criteria for the assessment. If not provided, uses default criteria.
+    required: false
+    default: ""
+  model:
+    description: Claude model ID.
+    required: false
+    default: "claude-opus-4-6"
+  blocked_paths:
+    description: Comma-separated path prefixes that cannot be modified (injected into security preamble).
+    required: false
+    default: ".github/workflows/"
+  working_directory:
+    description: Directory to run in (relative to workspace root). Defaults to workspace root.
+    required: false
+    default: "."
+
+outputs:
+  assessment:
+    description: PROCEED or SKIP
+    value: ${{ steps.assess.outputs.assessment }}
+  summary:
+    description: Human-readable assessment reasoning.
+    value: ${{ steps.assess.outputs.summary }}
+  result:
+    description: Full Claude result text.
+    value: ${{ steps.assess.outputs.result }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Claude CLI
+      shell: bash
+      run: |
+        if command -v roachdev >/dev/null; then
+          printf '#!/bin/sh\nexec roachdev claude -- "$@"\n' > /usr/local/bin/claude
+          chmod +x /usr/local/bin/claude
+          echo "Claude CLI: using roachdev wrapper"
+        else
+          curl --fail --silent --show-error --location https://claude.ai/install.sh | bash -s -- "$CLAUDE_CLI_VERSION"
+          echo "Claude CLI installed: $(claude --version)"
+        fi
+      env:
+        CLAUDE_CLI_VERSION: ${{ inputs.claude_cli_version }}
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/../go.mod
+
+    - name: Build autosolve
+      shell: bash
+      run: go build -trimpath -o "$RUNNER_TEMP/autosolve" ./cmd/autosolve
+      working-directory: ${{ github.action_path }}/..
+
+    - name: Run assessment
+      id: assess
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: "$RUNNER_TEMP/autosolve" assess
+      env:
+        INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_SKILL: ${{ inputs.skill }}
+        INPUT_ADDITIONAL_INSTRUCTIONS: ${{ inputs.additional_instructions }}
+        INPUT_ASSESSMENT_CRITERIA: ${{ inputs.assessment_criteria }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_BLOCKED_PATHS: ${{ inputs.blocked_paths }}
