@@ -177,11 +177,9 @@ func Run(
 	return writeOutputs(status, prURL, branchName, resultText, &tracker)
 }
 
-// Cleanup removes credentials and temporary state. Errors are ignored
-// because these are best-effort: the credential helper or fork remote
-// may not have been configured yet if the run failed early.
+// Cleanup removes temporary state. The error is ignored because the
+// fork remote may not have been configured yet if the run failed early.
 func Cleanup(gitClient git.Client) {
-	_ = gitClient.Config("--local", "--unset", "credential.helper")
 	_, _ = gitClient.Remote("remove", "fork")
 }
 
@@ -213,10 +211,17 @@ func pushAndPR(
 		return "", "", fmt.Errorf("setting git user.email: %w", err)
 	}
 
-	// Configure fork remote with credential helper
-	credHelper := fmt.Sprintf("!f() { echo \"username=%s\"; echo \"password=%s\"; }; f", cfg.ForkOwner, cfg.ForkPushToken)
-	if err := gitClient.Config("--local", "credential.helper", credHelper); err != nil {
-		return "", "", fmt.Errorf("setting credential helper: %w", err)
+	// Set fork credentials and GIT_ASKPASS for the git push subprocess
+	// only, so the token is never in the broader process environment or
+	// written to disk.
+	if cliClient, ok := gitClient.(*git.CLIClient); ok {
+		askpass := filepath.Join(os.Getenv("SCRIPTS_DIR"), "git-askpass.sh")
+		cliClient.PushEnv = []string{
+			"GIT_ASKPASS=" + askpass,
+			"GIT_FORK_USER=" + cfg.ForkOwner,
+			"GIT_FORK_PASSWORD=" + cfg.ForkPushToken,
+			"GIT_TERMINAL_PROMPT=0",
+		}
 	}
 
 	forkURL := fmt.Sprintf("https://github.com/%s/%s.git", cfg.ForkOwner, cfg.ForkRepo)

@@ -106,6 +106,13 @@ func LoadImplementConfig() (*Config, error) {
 	if err := c.validatePR(); err != nil {
 		return nil, err
 	}
+
+	// Remove tokens from the environment so they are not inherited by
+	// child processes (e.g. Claude CLI). The values are already captured
+	// in the Config struct.
+	os.Unsetenv("INPUT_FORK_PUSH_TOKEN")
+	os.Unsetenv("INPUT_PR_CREATE_TOKEN")
+
 	return c, nil
 }
 
@@ -142,6 +149,9 @@ func (c *Config) validatePR() error {
 	}
 	if c.PRCreateToken == "" {
 		missing = append(missing, "pr_create_token")
+	}
+	if os.Getenv("SCRIPTS_DIR") == "" {
+		missing = append(missing, "SCRIPTS_DIR")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("when create_pr is true, the following inputs are required: %s", strings.Join(missing, ", "))

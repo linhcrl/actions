@@ -25,7 +25,11 @@ type Client interface {
 }
 
 // CLIClient implements Client by shelling out to the git binary.
-type CLIClient struct{}
+// Extra env vars (e.g. for authentication) can be set via PushEnv;
+// they are applied only to git push commands.
+type CLIClient struct {
+	PushEnv []string
+}
 
 func (c *CLIClient) Diff(args ...string) (string, error) {
 	return c.output(append([]string{"diff"}, args...)...)
@@ -62,6 +66,9 @@ func (c *CLIClient) Push(args ...string) error {
 	cmd := exec.Command("git", append([]string{"push"}, args...)...)
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
+	if len(c.PushEnv) > 0 {
+		cmd.Env = append(os.Environ(), c.PushEnv...)
+	}
 	return cmd.Run()
 }
 
