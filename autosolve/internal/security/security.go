@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cockroachdb/actions/autosolve/internal/action"
 	"github.com/cockroachdb/actions/autosolve/internal/git"
 )
 
@@ -83,7 +84,11 @@ func Check(gitClient git.Client, blockedPaths []string) ([]string, error) {
 	}
 
 	if len(violations) > 0 {
-		_ = gitClient.ResetHead()
+		// Best-effort unstage; safe to continue because the caller
+		// treats any violation as a terminal error before pushing.
+		if err := gitClient.ResetHead(); err != nil {
+			action.LogWarning(fmt.Sprintf("failed to reset staged changes: %v", err))
+		}
 	}
 
 	return violations, nil

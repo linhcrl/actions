@@ -177,10 +177,12 @@ func Run(
 	return writeOutputs(status, prURL, branchName, resultText, &tracker)
 }
 
-// Cleanup removes temporary state. The error is ignored because the
-// fork remote may not have been configured yet if the run failed early.
+// Cleanup removes temporary state. Best-effort because the fork remote
+// may not have been configured yet if the run failed early.
 func Cleanup(gitClient git.Client) {
-	_, _ = gitClient.Remote("remove", "fork")
+	if _, err := gitClient.Remote("remove", "fork"); err != nil {
+		action.LogWarning(fmt.Sprintf("failed to remove fork remote: %v", err))
+	}
 }
 
 func pushAndPR(
@@ -631,13 +633,22 @@ func aiSecurityReview(
 		resultText, positive, _ := claude.ExtractResult(outputFile, "SECURITY_REVIEW")
 		action.SaveLogArtifact(outputFile, fmt.Sprintf("security_review_%d.json", batchNum))
 		if result.ExitCode != 0 || resultText == "" {
+			// Best-effort unstage; safe to continue because the return
+			// below stops execution before any push can occur.
+			if err := gitClient.ResetHead(); err != nil {
+				action.LogWarning(fmt.Sprintf("failed to reset staged changes: %v", err))
+			}
 			return fmt.Errorf("AI security review batch %d did not produce a result (exit code %d)", batchNum, result.ExitCode)
 		}
 
 		if !positive {
 			action.LogWarning(fmt.Sprintf("AI security review found sensitive content in batch %d:", batchNum))
 			action.LogWarning(resultText)
-			_ = gitClient.ResetHead()
+			// Best-effort unstage; safe to continue because the return
+			// below stops execution before any push can occur.
+			if err := gitClient.ResetHead(); err != nil {
+				action.LogWarning(fmt.Sprintf("failed to reset staged changes: %v", err))
+			}
 			return fmt.Errorf("sensitive content detected in staged changes")
 		}
 
