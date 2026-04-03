@@ -146,6 +146,44 @@ func TestParseBlockedPaths(t *testing.T) {
 	}
 }
 
+func TestEnvBool(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		def     bool
+		want    bool
+		wantErr bool
+	}{
+		{"empty uses default true", "", true, true, false},
+		{"empty uses default false", "", false, false, false},
+		{"lowercase true", "true", false, true, false},
+		{"uppercase TRUE", "TRUE", false, true, false},
+		{"mixed case True", "True", false, true, false},
+		{"lowercase false", "false", true, false, false},
+		{"uppercase FALSE", "FALSE", true, false, false},
+		{"invalid value", "yes", false, false, true},
+		{"numeric value", "1", false, false, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := "TEST_ENV_BOOL"
+			if tt.value == "" {
+				os.Unsetenv(key)
+			} else {
+				t.Setenv(key, tt.value)
+			}
+			got, err := envBool(key, tt.def)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("envBool() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("envBool() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func clearInputEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{

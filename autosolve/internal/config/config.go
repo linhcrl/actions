@@ -72,6 +72,15 @@ func LoadAssessConfig() (*Config, error) {
 
 // LoadImplementConfig reads config for the implement subcommand.
 func LoadImplementConfig() (*Config, error) {
+	createPR, err := envBool("INPUT_CREATE_PR", true)
+	if err != nil {
+		return nil, err
+	}
+	prDraft, err := envBool("INPUT_PR_DRAFT", true)
+	if err != nil {
+		return nil, err
+	}
+
 	c := &Config{
 		Prompt:                 os.Getenv("INPUT_PROMPT"),
 		Skill:                  os.Getenv("INPUT_SKILL"),
@@ -81,14 +90,14 @@ func LoadImplementConfig() (*Config, error) {
 		FooterType:             "implementation",
 		MaxRetries:             envOrDefaultInt("INPUT_MAX_RETRIES", 3),
 		AllowedTools:           envOrDefault("INPUT_ALLOWED_TOOLS", "Read,Write,Edit,Grep,Glob,Bash(git add:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(go build:*),Bash(go test:*),Bash(go vet:*),Bash(make:*)"),
-		CreatePR:               envOrDefault("INPUT_CREATE_PR", "true") == "true",
+		CreatePR:               createPR,
 		ForkOwner:              os.Getenv("INPUT_FORK_OWNER"),
 		ForkRepo:               os.Getenv("INPUT_FORK_REPO"),
 		ForkPushToken:          os.Getenv("INPUT_FORK_PUSH_TOKEN"),
 		PRCreateToken:          os.Getenv("INPUT_PR_CREATE_TOKEN"),
 		PRBaseBranch:           os.Getenv("INPUT_PR_BASE_BRANCH"),
 		PRLabels:               envOrDefault("INPUT_PR_LABELS", "autosolve"),
-		PRDraft:                envOrDefault("INPUT_PR_DRAFT", "true") == "true",
+		PRDraft:                prDraft,
 		PullRequestTitle:       os.Getenv("INPUT_PR_TITLE"),
 		PRBodyTemplate:         os.Getenv("INPUT_PR_BODY_TEMPLATE"),
 		PRFooter:               envOrDefault("INPUT_PR_FOOTER", defaultPRFooter),
@@ -200,6 +209,21 @@ func ParseBlockedPaths(raw string) []string {
 // security review.
 func (c *Config) SecurityReviewModel() string {
 	return "claude-sonnet-4-6"
+}
+
+func envBool(key string, def bool) (bool, error) {
+	v := strings.ToLower(os.Getenv(key))
+	if v == "" {
+		return def, nil
+	}
+	switch v {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean value for %s: %q (expected true or false)", key, os.Getenv(key))
+	}
 }
 
 func envOrDefault(key, def string) string {
