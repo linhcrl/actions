@@ -85,6 +85,25 @@ func TestExtractResult_NoMarker(t *testing.T) {
 	}
 }
 
+func TestExtractResult_EchoedMarkerUsesLast(t *testing.T) {
+	// Claude may echo the prompt instructions containing the marker before
+	// producing its actual result. The last occurrence should win.
+	f := writeJSON(t, claudeOutput{
+		Type: "result",
+		Result: "You asked me to output IMPLEMENTATION_RESULT - SUCCESS when done.\n" +
+			"However, the build is broken.\n\n" +
+			"IMPLEMENTATION_RESULT - FAILED",
+	})
+
+	_, positive, err := ExtractResult(f, "IMPLEMENTATION_RESULT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if positive {
+		t.Error("expected negative result; echoed SUCCESS marker should not win over final FAILED")
+	}
+}
+
 func TestExtractResult_EmptyResult(t *testing.T) {
 	f := writeJSON(t, claudeOutput{
 		Type:   "result",

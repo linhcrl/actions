@@ -247,10 +247,16 @@ func ExtractResult(outputFile, markerPrefix string) (text string, positive bool,
 		return "", false, err
 	}
 
-	if strings.Contains(text, markerPrefix+" - SUCCESS") || strings.Contains(text, markerPrefix+" - PROCEED") {
+	// Anchor to the last occurrence of the marker prefix so an early echo
+	// (e.g. Claude repeating the prompt) doesn't cause a false match.
+	line, ok := lastLineContaining(text, markerPrefix)
+	if !ok {
+		return text, false, fmt.Errorf("no valid %s marker found in output", markerPrefix)
+	}
+	if strings.Contains(line, "SUCCESS") || strings.Contains(line, "PROCEED") {
 		return text, true, nil
 	}
-	if strings.Contains(text, markerPrefix+" - FAILED") || strings.Contains(text, markerPrefix+" - SKIP") {
+	if strings.Contains(line, "FAILED") || strings.Contains(line, "SKIP") {
 		return text, false, nil
 	}
 	return text, false, fmt.Errorf("no valid %s marker found in output", markerPrefix)
@@ -312,6 +318,20 @@ func parseOutput(path string) (*Result, error) {
 		SessionID:  out.SessionID,
 		Usage:      usage,
 	}, nil
+}
+
+// lastLineContaining returns the line containing the last occurrence of
+// substr in text, or ("", false) if substr is not found.
+func lastLineContaining(text, substr string) (string, bool) {
+	idx := strings.LastIndex(text, substr)
+	if idx < 0 {
+		return "", false
+	}
+	line := text[idx:]
+	if nl := strings.IndexByte(line, '\n'); nl >= 0 {
+		line = line[:nl]
+	}
+	return line, true
 }
 
 func extractResultText(path string) (string, error) {
