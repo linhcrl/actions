@@ -109,6 +109,15 @@ func Run(
 		sessionID = claude.ExtractSessionID(outputFile)
 
 		if positive {
+			// If no PR body template is configured, Claude must write
+			// .autosolve-pr-body. Treat a missing file as an incomplete
+			// attempt so we retry rather than falling back to a low-quality body.
+			if cfg.CreatePR && cfg.PRBodyTemplate == "" {
+				if _, statErr := os.Stat(".autosolve-pr-body"); statErr != nil {
+					action.LogWarning(fmt.Sprintf("Attempt %d succeeded but .autosolve-pr-body was not written — retrying", attempt))
+					continue
+				}
+			}
 			action.LogNotice(fmt.Sprintf("Implementation succeeded on attempt %d", attempt))
 			implStatus = "SUCCESS"
 			if err := os.WriteFile(resultFile, []byte(resultText), 0644); err != nil {
@@ -336,7 +345,7 @@ func pushAndPR(
 	}
 
 	// Build PR body
-	prBody := buildPRBody(cfg, gitClient, tmpDir, baseBranch, branchName, resultText)
+	prBody := buildPRBody(cfg, tmpDir, branchName, resultText)
 
 	// Ensure labels exist
 	if cfg.PRLabels != "" {
@@ -398,7 +407,7 @@ func copyPRBody(tmpDir string) {
 }
 
 func buildPRBody(
-	cfg *config.Config, gitClient git.Client, tmpDir, baseBranch, branchName, resultText string,
+	cfg *config.Config, tmpDir, branchName, resultText string,
 ) string {
 	var body string
 
@@ -410,22 +419,11 @@ func buildPRBody(
 		body = strings.ReplaceAll(body, "{{BRANCH}}", branchName)
 	} else if data, err := os.ReadFile(filepath.Join(tmpDir, "autosolve-pr-body")); err == nil {
 		body = string(data)
-	} else {
-		out, err := gitClient.Log(fmt.Sprintf("%s..HEAD", baseBranch), "--format=%B")
-		if err == nil {
-			lines := strings.Split(out, "\n")
-			if len(lines) > maxPRBodyLines {
-				lines = lines[:maxPRBodyLines]
-			}
-			body = strings.Join(lines, "\n")
-		}
 	}
 
 	body += "\n\n" + cfg.PRFooter
 	return body
 }
-
-const maxPRBodyLines = 200
 
 func extractSummary(resultText, marker string) string {
 	var lines []string
