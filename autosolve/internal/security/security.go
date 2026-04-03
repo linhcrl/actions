@@ -64,6 +64,11 @@ func Check(gitClient git.Client, blockedPaths []string) ([]string, error) {
 		absPath := filepath.Join(repoRoot, file)
 		realPath, err := filepath.EvalSymlinks(absPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				// File was deleted or not yet on disk — nothing to resolve.
+				continue
+			}
+			violations = append(violations, fmt.Sprintf("cannot resolve path: %s (%v)", file, err))
 			continue
 		}
 		// If the real path differs from the expected path, a symlink is involved
