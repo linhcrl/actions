@@ -52,7 +52,7 @@ func Run(
 	outputFile := filepath.Join(tmpDir, "implementation.json")
 
 	var (
-		sessionID  string
+		result     *claude.Result
 		implStatus = "FAILED"
 		resultText string
 		tracker    claude.UsageTracker
@@ -72,25 +72,19 @@ func Run(
 		if attempt == 1 {
 			opts.PromptFile = promptFile
 		} else {
-			if sessionID == "" {
+			if result.SessionID == "" {
 				action.LogWarning("No session ID from previous attempt; restarting with original prompt")
 				opts.PromptFile = promptFile
 			} else {
-				opts.Resume = sessionID
+				opts.Resume = result.SessionID
 				opts.RetryPrompt = retryPrompt
 			}
 		}
 
-		logAttempt := func(r *claude.Result) {
-			tracker.Record(fmt.Sprintf("implement (attempt %d)", attempt), r.Usage)
-			action.LogInfo(fmt.Sprintf("Attempt %d usage: input=%d output=%d cost=$%.4f",
-				attempt, r.Usage.InputTokens, r.Usage.OutputTokens, r.Usage.CostUSD))
-			action.SaveLogArtifact(outputFile, fmt.Sprintf("implementation_attempt_%d.json", attempt))
-			sessionID = claude.ExtractSessionID(outputFile)
-		}
-
-		result, err := runner.Run(ctx, opts)
-		logAttempt(result)
+		description := fmt.Sprintf("implement (attempt %d)", attempt)
+		var err error
+		result, err = runner.Run(ctx, opts)
+		action.LogResult(&tracker, result, description, outputFile)
 		if err != nil {
 			action.LogWarning(fmt.Sprintf("Claude failed on attempt %d: %v", attempt, err))
 			continue
@@ -100,13 +94,20 @@ func Run(
 		var positive bool
 		resultText, positive, err = claude.ExtractResult(outputFile, "IMPLEMENTATION_RESULT")
 		if err != nil {
-			action.LogWarning(fmt.Sprintf("No result text extracted from Claude output on attempt %d — see uploaded artifacts for raw output - retrying", attempt))
+			action.LogWarning(fmt.Sprintf("No result text extracted from Claude output on attempt %d: %v — see uploaded artifacts for raw output - retrying", attempt, err))
 			continue
 		}
 		action.LogInfo(fmt.Sprintf("Claude result (attempt %d):", attempt))
 		action.LogInfo(resultText)
 
 		if positive {
+			// Claude must write .autosolve-commit-message. Treat a missing
+			// file as an incomplete attempt so we retry rather than falling
+			// back to a low-quality commit message.
+			if _, statErr := os.Stat(".autosolve-commit-message"); statErr != nil {
+				action.LogWarning(fmt.Sprintf("Attempt %d succeeded but .autosolve-commit-message was not written - retrying", attempt))
+				continue
+			}
 			// If no PR body template is configured, Claude must write
 			// .autosolve-pr-body. Treat a missing file as an incomplete
 			// attempt so we retry rather than falling back to a low-quality body.
@@ -176,14 +177,6 @@ func Run(
 	return writeOutputs(status, prURL, branchName, resultText, &tracker)
 }
 
-// Cleanup removes temporary state. Best-effort because the fork remote
-// may not have been configured yet if the run failed early.
-func Cleanup(gitClient git.Client) {
-	if _, err := gitClient.Remote("remove", "fork"); err != nil {
-		action.LogWarning(fmt.Sprintf("failed to remove fork remote: %v", err))
-	}
-}
-
 func pushAndPR(
 	ctx context.Context,
 	cfg *config.Config,
@@ -228,7 +221,10 @@ func pushAndPR(
 	forkURL := fmt.Sprintf("https://github.com/%s/%s.git", cfg.ForkOwner, cfg.ForkRepo)
 
 	// Check if fork remote exists (exact line match to avoid matching e.g. "forked")
-	remotes, _ := gitClient.Remote()
+	remotes, err := gitClient.Remote()
+	if err != nil {
+		return "", "", fmt.Errorf("listing git remotes: %w", err)
+	}
 	hasFork := false
 	for _, line := range strings.Split(remotes, "\n") {
 		if strings.TrimSpace(line) == "fork" {
@@ -237,9 +233,13 @@ func pushAndPR(
 		}
 	}
 	if hasFork {
-		_, _ = gitClient.Remote("set-url", "fork", forkURL)
+		if _, err := gitClient.Remote("set-url", "fork", forkURL); err != nil {
+			return "", "", fmt.Errorf("updating fork remote URL: %w", err)
+		}
 	} else {
-		_, _ = gitClient.Remote("add", "fork", forkURL)
+		if _, err := gitClient.Remote("add", "fork", forkURL); err != nil {
+			return "", "", fmt.Errorf("adding fork remote: %w", err)
+		}
 	}
 
 	// Create branch
@@ -254,8 +254,13 @@ func pushAndPR(
 	}
 
 	// Read and remove Claude-generated metadata files
-	commitSubject, commitBody := readCommitMessage()
-	copyPRBody(tmpDir)
+	commitSubject, commitBody, err := readCommitMessage()
+	if err != nil {
+		return "", "", err
+	}
+	if err := copyPRBody(tmpDir); err != nil {
+		return "", "", err
+	}
 
 	// Stage only files that appear in the working tree diff (unstaged,
 	// staged, and untracked). This avoids blindly staging credential files
@@ -266,7 +271,7 @@ func pushAndPR(
 	}
 	for _, f := range changedFiles {
 		if err := gitClient.Add(f); err != nil {
-			action.LogWarning(fmt.Sprintf("Failed to stage %s: %v", f, err))
+			return "", "", fmt.Errorf("staging %s: %w", f, err)
 		}
 	}
 
@@ -342,7 +347,9 @@ func pushAndPR(
 		for _, label := range strings.Split(cfg.PRLabels, ",") {
 			label = strings.TrimSpace(label)
 			if label != "" {
-				_ = ghClient.CreateLabel(ctx, cfg.GithubRepository, label)
+				if err := ghClient.CreateLabel(ctx, cfg.GithubRepository, label); err != nil {
+					return "", "", fmt.Errorf("ensuring label %q exists: %w", label, err)
+				}
 			}
 		}
 	}
@@ -362,18 +369,25 @@ func pushAndPR(
 	}
 
 	action.LogNotice(fmt.Sprintf("PR created: %s", prURL))
-	action.SetOutput("pr_url", prURL)
-	action.SetOutput("branch_name", branchName)
+	if err := action.SetOutput("pr_url", prURL); err != nil {
+		return "", "", fmt.Errorf("setting output: %w", err)
+	}
+	if err := action.SetOutput("branch_name", branchName); err != nil {
+		return "", "", fmt.Errorf("setting output: %w", err)
+	}
 
 	return prURL, branchName, nil
 }
 
-func readCommitMessage() (subject, body string) {
+func readCommitMessage() (subject, body string, err error) {
 	data, err := os.ReadFile(".autosolve-commit-message")
 	if err != nil {
-		return "", ""
+		return "", "", fmt.Errorf("reading commit message: %w", err)
 	}
-	_ = os.Remove(".autosolve-commit-message")
+	// Fail hard: a stale file could interfere with later retry attempts.
+	if err := os.Remove(".autosolve-commit-message"); err != nil {
+		return "", "", fmt.Errorf("removing commit message file: %w", err)
+	}
 
 	lines := strings.SplitN(string(data), "\n", 3)
 	if len(lines) > 0 {
@@ -382,18 +396,25 @@ func readCommitMessage() (subject, body string) {
 	if len(lines) > 2 {
 		body = strings.TrimSpace(lines[2])
 	}
-	return subject, body
+	return subject, body, nil
 }
 
-func copyPRBody(tmpDir string) {
+func copyPRBody(tmpDir string) error {
 	data, err := os.ReadFile(".autosolve-pr-body")
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
-		return
+		return fmt.Errorf("reading PR body: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(tmpDir, "autosolve-pr-body"), data, 0644); err != nil {
-		action.LogWarning(fmt.Sprintf("Failed to copy PR body: %v", err))
+		return fmt.Errorf("copying PR body: %w", err)
 	}
-	_ = os.Remove(".autosolve-pr-body")
+	// Fail hard: a stale file could interfere with later retry attempts.
+	if err := os.Remove(".autosolve-pr-body"); err != nil {
+		return fmt.Errorf("removing PR body file: %w", err)
+	}
+	return nil
 }
 
 func buildPRBody(cfg *config.Config, tmpDir, branchName, resultText string) string {
@@ -544,10 +565,12 @@ func aiSecurityReview(
 		diff string
 	}
 	var diffs []fileDiff
+	var diffErrors int
 	for _, f := range allFiles {
 		d, err := gitClient.Diff("--cached", "--", f)
 		if err != nil {
-			action.LogWarning(fmt.Sprintf("Could not get diff for %s, skipping", f))
+			action.LogWarning(fmt.Sprintf("Could not get diff for %s: %v, skipping", f, err))
+			diffErrors++
 			continue
 		}
 		if d == "" {
@@ -561,6 +584,9 @@ func aiSecurityReview(
 	}
 
 	if len(diffs) == 0 {
+		if diffErrors > 0 {
+			return fmt.Errorf("security review failed: could not retrieve diffs for %d of %d files", diffErrors, len(allFiles))
+		}
 		action.LogInfo("No non-generated diffs to review")
 		return nil
 	}
@@ -601,6 +627,7 @@ func aiSecurityReview(
 			return fmt.Errorf("writing security review prompt: %w", err)
 		}
 
+		description := fmt.Sprintf("security review (batch %d)", batchNum)
 		outputFile := filepath.Join(tmpDir, fmt.Sprintf("security_review_%d.json", batchNum))
 		result, err := runner.Run(ctx, claude.RunOptions{
 			Model:        cfg.SecurityReviewModel(),
@@ -609,10 +636,7 @@ func aiSecurityReview(
 			PromptFile:   promptFile,
 			OutputFile:   outputFile,
 		})
-		tracker.Record("security review", result.Usage)
-		action.LogInfo(fmt.Sprintf("Security review batch %d usage: input=%d output=%d cost=$%.4f",
-			batchNum, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
-		action.SaveLogArtifact(outputFile, fmt.Sprintf("security_review_%d.json", batchNum))
+		action.LogResult(tracker, result, description, outputFile)
 		if err != nil {
 			// Best-effort unstage; safe to continue because the return
 			// below stops execution before any push can occur.
@@ -654,11 +678,21 @@ func writeOutputs(
 	summary := extractSummary(resultText, "IMPLEMENTATION_RESULT")
 	summary = action.TruncateOutput(200, summary)
 
-	action.SetOutput("status", status)
-	action.SetOutput("pr_url", prURL)
-	action.SetOutput("branch_name", branchName)
-	action.SetOutputMultiline("summary", summary)
-	action.SetOutputMultiline("result", resultText)
+	if err := action.SetOutput("status", status); err != nil {
+		return fmt.Errorf("setting output: %w", err)
+	}
+	if err := action.SetOutput("pr_url", prURL); err != nil {
+		return fmt.Errorf("setting output: %w", err)
+	}
+	if err := action.SetOutput("branch_name", branchName); err != nil {
+		return fmt.Errorf("setting output: %w", err)
+	}
+	if err := action.SetOutputMultiline("summary", summary); err != nil {
+		return fmt.Errorf("setting output: %w", err)
+	}
+	if err := action.SetOutputMultiline("result", resultText); err != nil {
+		return fmt.Errorf("setting output: %w", err)
+	}
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "## Autosolve Implementation\n**Status:** %s\n", status)
@@ -674,12 +708,16 @@ func writeOutputs(
 	if tracker != nil {
 		// Load usage from earlier steps (e.g. assess) so the table is combined
 		tracker.Load()
-		tracker.Save()
+		if saveErr := tracker.Save(); saveErr != nil {
+			action.LogWarning(fmt.Sprintf("failed to save usage summary: %v", saveErr))
+		}
 		total := tracker.Total()
 		action.LogInfo(fmt.Sprintf("Total usage: input=%d output=%d cost=$%.4f",
 			total.InputTokens, total.OutputTokens, total.CostUSD))
 	}
-	action.WriteStepSummary(sb.String())
+	if err := action.WriteStepSummary(sb.String()); err != nil {
+		return fmt.Errorf("writing step summary: %w", err)
+	}
 
 	return nil
 }

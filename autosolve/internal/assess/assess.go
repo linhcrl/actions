@@ -35,21 +35,22 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 		PromptFile:   promptFile,
 		OutputFile:   outputFile,
 	})
-	tracker.Record("assess", result.Usage)
-	tracker.Save()
-	action.LogInfo(fmt.Sprintf("Assessment usage: input=%d output=%d cost=$%.4f",
-		result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
+	action.LogResult(&tracker, result, "assess", outputFile)
+	if saveErr := tracker.Save(); saveErr != nil {
+		action.LogWarning(fmt.Sprintf("failed to save usage summary: %v", saveErr))
+	}
 	if err != nil {
 		return fmt.Errorf("running claude: %w", err)
 	}
 
 	// Extract result
 	resultText, positive, err := claude.ExtractResult(outputFile, "ASSESSMENT_RESULT")
-	action.SaveLogArtifact(outputFile, "assessment.json")
 	if err != nil {
-		action.LogError("No assessment result found in Claude output")
-		action.SetOutput("assessment", "ERROR")
-		return fmt.Errorf("no assessment result found in Claude output")
+		action.LogError(fmt.Sprintf("No assessment result found in Claude output: %v", err))
+		if setErr := action.SetOutput("assessment", "ERROR"); setErr != nil {
+			return fmt.Errorf("setting output: %w", setErr)
+		}
+		return fmt.Errorf("extracting assessment result: %w", err)
 	}
 
 	action.LogInfo(resultText)
@@ -63,7 +64,9 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 		action.LogNotice("Assessment: SKIP")
 	} else {
 		action.LogError("Assessment result did not contain a valid PROCEED or SKIP marker")
-		action.SetOutput("assessment", "ERROR")
+		if setErr := action.SetOutput("assessment", "ERROR"); setErr != nil {
+			return fmt.Errorf("setting output: %w", setErr)
+		}
 		return fmt.Errorf("invalid assessment result")
 	}
 
@@ -71,11 +74,18 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 	summary := extractSummary(resultText, "ASSESSMENT_RESULT")
 	summary = action.TruncateOutput(200, summary)
 
-	action.SetOutput("assessment", assessment)
-	action.SetOutputMultiline("summary", summary)
-	action.SetOutputMultiline("result", resultText)
-
-	action.WriteStepSummary(formatStepSummary(assessment, summary))
+	if err := action.SetOutput("assessment", assessment); err != nil {
+		return fmt.Errorf("setting output: %w", err)
+	}
+	if err := action.SetOutputMultiline("summary", summary); err != nil {
+		return fmt.Errorf("setting output: %w", err)
+	}
+	if err := action.SetOutputMultiline("result", resultText); err != nil {
+		return fmt.Errorf("setting output: %w", err)
+	}
+	if err := action.WriteStepSummary(formatStepSummary(assessment, summary)); err != nil {
+		return fmt.Errorf("writing step summary: %w", err)
+	}
 
 	return nil
 }

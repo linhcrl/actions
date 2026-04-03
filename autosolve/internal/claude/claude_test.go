@@ -116,31 +116,6 @@ func TestExtractResult_EmptyResult(t *testing.T) {
 	}
 }
 
-func TestExtractSessionID(t *testing.T) {
-	f := writeJSON(t, claudeOutput{
-		Type:      "result",
-		Result:    "done",
-		SessionID: "sess-abc-123",
-	})
-
-	id := ExtractSessionID(f)
-	if id != "sess-abc-123" {
-		t.Errorf("expected session ID 'sess-abc-123', got %q", id)
-	}
-}
-
-func TestExtractSessionID_Missing(t *testing.T) {
-	f := writeJSON(t, claudeOutput{
-		Type:   "result",
-		Result: "done",
-	})
-
-	id := ExtractSessionID(f)
-	if id != "" {
-		t.Errorf("expected empty session ID, got %q", id)
-	}
-}
-
 func TestExtractResult_FileNotFound(t *testing.T) {
 	_, _, err := ExtractResult("/nonexistent/file.json", "IMPLEMENTATION_RESULT")
 	if err == nil {
@@ -192,13 +167,17 @@ func TestUsageTracker_LoadSave(t *testing.T) {
 	// Simulate assess phase saving
 	var assess UsageTracker
 	assess.Record("assess", Usage{InputTokens: 100, OutputTokens: 200, CostUSD: 0.50})
-	assess.Save()
+	if err := assess.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Simulate implement phase loading assess data and adding its own
 	var impl UsageTracker
 	impl.Record("implement (attempt 1)", Usage{InputTokens: 500, OutputTokens: 1000, CostUSD: 1.25})
 	impl.Load()
-	impl.Save()
+	if err := impl.Save(); err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify the final file has both sections
 	final := ParseSummary(impl.FormatSummary())

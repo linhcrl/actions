@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,11 @@ func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.R
 	data, _ := json.Marshal(out)
 	os.WriteFile(opts.OutputFile, data, 0644)
 
+	// Simulate Claude writing metadata files on success
+	if strings.Contains(resultText, "SUCCESS") {
+		os.WriteFile(".autosolve-commit-message", []byte("fix: mock commit"), 0644)
+	}
+
 	result := &claude.Result{
 		ResultText: resultText,
 		SessionID:  sessionID,
@@ -63,20 +69,9 @@ func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.R
 }
 
 type mockGHClient struct {
-	comments []string
-	labels   []string
-	prURL    string
-	prErr    error
-}
-
-func (m *mockGHClient) CreateComment(_ context.Context, _ string, _ int, body string) error {
-	m.comments = append(m.comments, body)
-	return nil
-}
-
-func (m *mockGHClient) RemoveLabel(_ context.Context, _ string, _ int, label string) error {
-	m.labels = append(m.labels, label)
-	return nil
+	labels []string
+	prURL  string
+	prErr  error
 }
 
 func (m *mockGHClient) CreatePR(_ context.Context, opts github.PullRequestOptions) (string, error) {
@@ -89,10 +84,6 @@ func (m *mockGHClient) CreatePR(_ context.Context, opts github.PullRequestOption
 func (m *mockGHClient) CreateLabel(_ context.Context, _ string, name string) error {
 	m.labels = append(m.labels, name)
 	return nil
-}
-
-func (m *mockGHClient) FindPRByLabel(_ context.Context, _ string, _ string) (string, error) {
-	return "", nil
 }
 
 type mockGitClient struct{}
@@ -115,6 +106,7 @@ func init() {
 
 func TestRun_SuccessNoPR(t *testing.T) {
 	tmpDir := t.TempDir()
+	t.Cleanup(func() { os.Remove(".autosolve-commit-message") })
 	t.Setenv("GITHUB_OUTPUT", tmpDir+"/output")
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
@@ -143,6 +135,7 @@ func TestRun_SuccessNoPR(t *testing.T) {
 
 func TestRun_RetryThenSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
+	t.Cleanup(func() { os.Remove(".autosolve-commit-message") })
 	t.Setenv("GITHUB_OUTPUT", tmpDir+"/output")
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
@@ -236,16 +229,19 @@ func TestReadCommitMessage(t *testing.T) {
 	os.Chdir(dir)
 	t.Cleanup(func() { os.Chdir(orig) })
 
-	t.Run("missing file returns empty", func(t *testing.T) {
-		subject, body := readCommitMessage()
-		if subject != "" || body != "" {
-			t.Errorf("expected empty, got subject=%q body=%q", subject, body)
+	t.Run("missing file returns error", func(t *testing.T) {
+		_, _, err := readCommitMessage()
+		if err == nil {
+			t.Error("expected error when file is missing")
 		}
 	})
 
 	t.Run("subject only", func(t *testing.T) {
 		os.WriteFile(".autosolve-commit-message", []byte("fix: broken build"), 0644)
-		subject, body := readCommitMessage()
+		subject, body, err := readCommitMessage()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if subject != "fix: broken build" {
 			t.Errorf("unexpected subject: %q", subject)
 		}
@@ -256,7 +252,10 @@ func TestReadCommitMessage(t *testing.T) {
 
 	t.Run("subject and body", func(t *testing.T) {
 		os.WriteFile(".autosolve-commit-message", []byte("fix: broken build\n\nDetailed explanation here."), 0644)
-		subject, body := readCommitMessage()
+		subject, body, err := readCommitMessage()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if subject != "fix: broken build" {
 			t.Errorf("unexpected subject: %q", subject)
 		}

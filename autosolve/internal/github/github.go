@@ -12,11 +12,8 @@ import (
 
 // Client defines GitHub API interactions needed by autosolve.
 type Client interface {
-	CreateComment(ctx context.Context, repo string, issue int, body string) error
-	RemoveLabel(ctx context.Context, repo string, issue int, label string) error
 	CreatePR(ctx context.Context, opts PullRequestOptions) (string, error)
 	CreateLabel(ctx context.Context, repo string, name string) error
-	FindPRByLabel(ctx context.Context, repo string, label string) (string, error)
 }
 
 // PullRequestOptions configures PR creation.
@@ -33,26 +30,6 @@ type PullRequestOptions struct {
 // GithubClient implements Client by shelling out to the gh CLI.
 type GithubClient struct {
 	Token string
-}
-
-func (c *GithubClient) CreateComment(
-	ctx context.Context, repo string, issue int, body string,
-) error {
-	cmd := c.command(ctx, "issue", "comment", fmt.Sprintf("%d", issue),
-		"--repo", repo,
-		"--body", body)
-	return cmd.Run()
-}
-
-func (c *GithubClient) RemoveLabel(
-	ctx context.Context, repo string, issue int, label string,
-) error {
-	cmd := c.command(ctx, "issue", "edit", fmt.Sprintf("%d", issue),
-		"--repo", repo,
-		"--remove-label", label)
-	// Best-effort: label may already be removed
-	_ = cmd.Run()
-	return nil
 }
 
 func (c *GithubClient) CreatePR(ctx context.Context, opts PullRequestOptions) (string, error) {
@@ -82,24 +59,16 @@ func (c *GithubClient) CreateLabel(ctx context.Context, repo string, name string
 	cmd := c.command(ctx, "label", "create", name,
 		"--repo", repo,
 		"--color", "6f42c1")
-	// Best-effort: label may already exist
-	_ = cmd.Run()
-	return nil
-}
-
-func (c *GithubClient) FindPRByLabel(
-	ctx context.Context, repo string, label string,
-) (string, error) {
-	cmd := c.command(ctx, "pr", "list",
-		"--repo", repo,
-		"--label", label,
-		"--json", "url",
-		"--jq", ".[0].url // empty")
-	out, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("searching for PRs with label %q: %w", label, err)
+	// Capture stderr so we can distinguish "already exists" from real errors.
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if strings.Contains(stderr.String(), "already exists") {
+			return nil
+		}
+		return fmt.Errorf("creating label %q: %s", name, strings.TrimSpace(stderr.String()))
 	}
-	return strings.TrimSpace(string(out)), nil
+	return nil
 }
 
 func (c *GithubClient) command(ctx context.Context, args ...string) *exec.Cmd {

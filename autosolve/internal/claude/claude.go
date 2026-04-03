@@ -136,10 +136,8 @@ func (t *UsageTracker) Load() {
 // Save writes the formatted markdown usage table to UsageSummaryPath.
 // The file is always a complete, self-contained table ready to append
 // to GITHUB_STEP_SUMMARY.
-func (t *UsageTracker) Save() {
-	if err := os.WriteFile(UsageSummaryPath(), []byte(t.FormatSummary()), 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: failed to write usage summary: %v\n", err)
-	}
+func (t *UsageTracker) Save() error {
+	return os.WriteFile(UsageSummaryPath(), []byte(t.FormatSummary()), 0644)
 }
 
 // ParseSummary parses a markdown usage table (as produced by
@@ -264,15 +262,6 @@ func ExtractResult(outputFile, markerPrefix string) (text string, positive bool,
 		return text, false, nil
 	}
 	return text, false, fmt.Errorf("no valid %s marker found in output", markerPrefix)
-}
-
-// ExtractSessionID extracts the session ID from Claude JSON output.
-func ExtractSessionID(outputFile string) string {
-	result, err := parseOutput(outputFile)
-	if err != nil {
-		return ""
-	}
-	return result.SessionID
 }
 
 // claudeOutput represents the JSON structure from claude --print --output-format json.

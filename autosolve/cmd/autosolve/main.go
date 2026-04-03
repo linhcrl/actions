@@ -80,8 +80,6 @@ func runImplement(ctx context.Context) error {
 	}
 
 	gitClient := &git.CLIClient{}
-	defer implement.Cleanup(gitClient)
-
 	ghClient := &github.GithubClient{Token: cfg.PRCreateToken}
 	return implement.Run(ctx, cfg, &claude.CLIRunner{}, ghClient, gitClient, tmpDir)
 }

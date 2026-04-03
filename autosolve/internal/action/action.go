@@ -3,30 +3,29 @@
 package action
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/cockroachdb/actions/autosolve/internal/claude"
 )
 
 // SetOutput writes a single-line output to $GITHUB_OUTPUT.
-func SetOutput(key, value string) {
-	appendToFile(os.Getenv("GITHUB_OUTPUT"), fmt.Sprintf("%s=%s", key, value))
+func SetOutput(key, value string) error {
+	return appendToFile(os.Getenv("GITHUB_OUTPUT"), fmt.Sprintf("%s=%s", key, value))
 }
 
 // SetOutputMultiline writes a multiline output to $GITHUB_OUTPUT using a
-// heredoc-style delimiter with a random suffix to avoid collisions.
-func SetOutputMultiline(key, value string) {
-	delim := randomDelimiter()
-	content := fmt.Sprintf("%s<<%s\n%s\n%s", key, delim, value, delim)
-	appendToFile(os.Getenv("GITHUB_OUTPUT"), content)
+// heredoc-style delimiter.
+func SetOutputMultiline(key, value string) error {
+	content := fmt.Sprintf("%s<<GHEOF\n%s\nGHEOF", key, value)
+	return appendToFile(os.Getenv("GITHUB_OUTPUT"), content)
 }
 
 // WriteStepSummary appends markdown content to $GITHUB_STEP_SUMMARY.
-func WriteStepSummary(content string) {
-	appendToFile(os.Getenv("GITHUB_STEP_SUMMARY"), content)
+func WriteStepSummary(content string) error {
+	return appendToFile(os.Getenv("GITHUB_STEP_SUMMARY"), content)
 }
 
 // LogError emits a GitHub Actions error annotation.
@@ -61,46 +60,52 @@ func TruncateOutput(maxLines int, text string) string {
 
 // SaveLogArtifact copies a file to $RUNNER_TEMP/autosolve-logs/ so the calling
 // workflow can upload it as an artifact for debugging.
-func SaveLogArtifact(srcPath, name string) {
+func SaveLogArtifact(srcPath, name string) error {
 	dir := os.Getenv("RUNNER_TEMP")
 	if dir == "" {
 		dir = os.TempDir()
 	}
 	logDir := filepath.Join(dir, "autosolve-logs")
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		LogWarning(fmt.Sprintf("failed to create log artifact dir: %v", err))
-		return
+		return fmt.Errorf("creating log artifact dir: %w", err)
 	}
 	data, err := os.ReadFile(srcPath)
 	if err != nil {
-		LogWarning(fmt.Sprintf("failed to read %s for artifact: %v", srcPath, err))
-		return
+		return fmt.Errorf("reading %s for artifact: %w", srcPath, err)
 	}
 	dst := filepath.Join(logDir, name)
 	if err := os.WriteFile(dst, data, 0644); err != nil {
-		LogWarning(fmt.Sprintf("failed to write log artifact %s: %v", dst, err))
-		return
+		return fmt.Errorf("writing log artifact %s: %w", dst, err)
 	}
 	LogInfo(fmt.Sprintf("Saved log artifact: %s", dst))
+	return nil
 }
 
-func randomDelimiter() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("GHEOF_%d", os.Getpid())
+// LogResult records usage for a Claude invocation, logs token counts, and
+// saves the output file as a log artifact. Call immediately after runner.Run
+// and before checking the error so that usage and artifacts are captured
+// even on failure.
+func LogResult(tracker *claude.UsageTracker, result *claude.Result, section, outputFile string) {
+	tracker.Record(section, result.Usage)
+	LogInfo(fmt.Sprintf("%s usage: input=%d output=%d cost=$%.4f",
+		section, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
+	artifactName := strings.NewReplacer(" ", "_", "(", "", ")", "").Replace(section) + ".json"
+	if err := SaveLogArtifact(outputFile, artifactName); err != nil {
+		LogWarning(fmt.Sprintf("failed to save log artifact: %v", err))
 	}
-	return "GHEOF_" + hex.EncodeToString(b)
 }
 
-func appendToFile(path, content string) {
+func appendToFile(path, content string) error {
 	if path == "" {
-		return
+		return fmt.Errorf("output file path is empty (missing GITHUB_OUTPUT or GITHUB_STEP_SUMMARY env var)")
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "::warning::failed to open %s: %v\n", path, err)
-		return
+		return fmt.Errorf("opening %s: %w", path, err)
 	}
 	defer f.Close()
-	fmt.Fprintln(f, content)
+	if _, err := fmt.Fprintln(f, content); err != nil {
+		return fmt.Errorf("writing to %s: %w", path, err)
+	}
+	return nil
 }

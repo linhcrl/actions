@@ -9,11 +9,14 @@ import (
 
 func TestSetOutput(t *testing.T) {
 	tmp := filepath.Join(t.TempDir(), "output")
-	os.Setenv("GITHUB_OUTPUT", tmp)
-	defer os.Unsetenv("GITHUB_OUTPUT")
+	t.Setenv("GITHUB_OUTPUT", tmp)
 
-	SetOutput("key1", "value1")
-	SetOutput("key2", "value2")
+	if err := SetOutput("key1", "value1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetOutput("key2", "value2"); err != nil {
+		t.Fatal(err)
+	}
 
 	data, err := os.ReadFile(tmp)
 	if err != nil {
@@ -30,17 +33,18 @@ func TestSetOutput(t *testing.T) {
 
 func TestSetOutputMultiline(t *testing.T) {
 	tmp := filepath.Join(t.TempDir(), "output")
-	os.Setenv("GITHUB_OUTPUT", tmp)
-	defer os.Unsetenv("GITHUB_OUTPUT")
+	t.Setenv("GITHUB_OUTPUT", tmp)
 
-	SetOutputMultiline("body", "line1\nline2\nline3")
+	if err := SetOutputMultiline("body", "line1\nline2\nline3"); err != nil {
+		t.Fatal(err)
+	}
 
 	data, err := os.ReadFile(tmp)
 	if err != nil {
 		t.Fatal(err)
 	}
 	content := string(data)
-	if !strings.Contains(content, "body<<GHEOF_") {
+	if !strings.Contains(content, "body<<GHEOF") {
 		t.Errorf("expected heredoc delimiter, got: %s", content)
 	}
 	if !strings.Contains(content, "line1\nline2\nline3") {
@@ -49,10 +53,12 @@ func TestSetOutputMultiline(t *testing.T) {
 }
 
 func TestSetOutput_NoFile(t *testing.T) {
-	os.Setenv("GITHUB_OUTPUT", "")
-	defer os.Unsetenv("GITHUB_OUTPUT")
-	// Should not panic
-	SetOutput("key", "value")
+	t.Setenv("GITHUB_OUTPUT", "")
+
+	err := SetOutput("key", "value")
+	if err == nil {
+		t.Error("expected error when GITHUB_OUTPUT is empty")
+	}
 }
 
 func TestTruncateOutput(t *testing.T) {
@@ -85,10 +91,11 @@ func TestTruncateOutput(t *testing.T) {
 
 func TestWriteStepSummary(t *testing.T) {
 	tmp := filepath.Join(t.TempDir(), "summary")
-	os.Setenv("GITHUB_STEP_SUMMARY", tmp)
-	defer os.Unsetenv("GITHUB_STEP_SUMMARY")
+	t.Setenv("GITHUB_STEP_SUMMARY", tmp)
 
-	WriteStepSummary("## Test\nContent here")
+	if err := WriteStepSummary("## Test\nContent here"); err != nil {
+		t.Fatal(err)
+	}
 
 	data, err := os.ReadFile(tmp)
 	if err != nil {
