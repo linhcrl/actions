@@ -15,15 +15,11 @@ import (
 	"github.com/cockroachdb/actions/autosolve/internal/implement"
 )
 
-// BuildSHA is set at build time via -ldflags.
-var BuildSHA = "dev"
-
 const usage = `Usage: autosolve <command>
 
 Commands:
   assess      Run assessment phase
   implement   Run implementation phase
-  version     Print the git SHA this binary was built from
 `
 
 func main() {
@@ -40,9 +36,6 @@ func main() {
 		err = runAssess(ctx)
 	case "implement":
 		err = runImplement(ctx)
-	case "version":
-		fmt.Println(BuildSHA)
-		return
 	default:
 		fatalf("unknown command: %s\n\n%s", os.Args[1], usage)
 	}

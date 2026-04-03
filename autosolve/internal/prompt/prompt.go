@@ -94,27 +94,6 @@ func Build(cfg *config.Config, tmpDir string) (string, error) {
 	return f.Name(), nil
 }
 
-const defaultIssuePromptTemplate = "Fix GitHub issue #{{ISSUE_NUMBER}}.\nTitle: {{ISSUE_TITLE}}\nBody: {{ISSUE_BODY}}"
-
-// BuildIssuePrompt builds a prompt from GitHub issue context, or passes
-// through INPUT_PROMPT if set. If template is non-empty, it is used as the
-// issue prompt template with {{ISSUE_NUMBER}}, {{ISSUE_TITLE}}, and
-// {{ISSUE_BODY}} placeholders.
-func BuildIssuePrompt(prompt, template, issueNumber, issueTitle, issueBody string) string {
-	if prompt != "" {
-		return prompt
-	}
-	if template == "" {
-		template = defaultIssuePromptTemplate
-	}
-	r := strings.NewReplacer(
-		"{{ISSUE_NUMBER}}", issueNumber,
-		"{{ISSUE_TITLE}}", issueTitle,
-		"{{ISSUE_BODY}}", issueBody,
-	)
-	return r.Replace(template)
-}
-
 func loadTemplate(name string) (string, error) {
 	data, err := templateFS.ReadFile("templates/" + name)
 	if err != nil {

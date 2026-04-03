@@ -154,31 +154,3 @@ func TestBuild_SkillFileNotFound(t *testing.T) {
 		t.Error("expected error for missing skill file")
 	}
 }
-
-func TestBuildIssuePrompt_Passthrough(t *testing.T) {
-	result := BuildIssuePrompt("custom prompt", "", "42", "title", "body")
-	if result != "custom prompt" {
-		t.Errorf("expected passthrough, got %q", result)
-	}
-}
-
-func TestBuildIssuePrompt_FromIssue(t *testing.T) {
-	result := BuildIssuePrompt("", "", "42", "Bug Title", "Bug description")
-	if !strings.Contains(result, "#42") {
-		t.Error("expected issue number")
-	}
-	if !strings.Contains(result, "Bug Title") {
-		t.Error("expected issue title")
-	}
-	if !strings.Contains(result, "Bug description") {
-		t.Error("expected issue body")
-	}
-}
-
-func TestBuildIssuePrompt_CustomTemplate(t *testing.T) {
-	result := BuildIssuePrompt("", "Please address issue {{ISSUE_NUMBER}}: {{ISSUE_TITLE}}", "99", "Title", "Body")
-	expected := "Please address issue 99: Title"
-	if result != expected {
-		t.Errorf("expected %q, got %q", expected, result)
-	}
-}

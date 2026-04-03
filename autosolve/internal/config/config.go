@@ -47,9 +47,6 @@ type Config struct {
 	BranchSuffix     string
 	CommitSignature  string
 
-	// Prompt
-	IssuePromptTemplate string
-
 	// GitHub context
 	GithubRepository string
 }
@@ -61,7 +58,7 @@ func LoadAssessConfig() (*Config, error) {
 		Skill:                  os.Getenv("INPUT_SKILL"),
 		AdditionalInstructions: os.Getenv("INPUT_ADDITIONAL_INSTRUCTIONS"),
 		AssessmentCriteria:     os.Getenv("INPUT_ASSESSMENT_CRITERIA"),
-		Model:                  envOrDefault("INPUT_MODEL", "sonnet"),
+		Model:                  os.Getenv("INPUT_MODEL"),
 		BlockedPaths:           ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
 		FooterType:             "assessment",
 
@@ -79,7 +76,7 @@ func LoadImplementConfig() (*Config, error) {
 		Prompt:                 os.Getenv("INPUT_PROMPT"),
 		Skill:                  os.Getenv("INPUT_SKILL"),
 		AdditionalInstructions: os.Getenv("INPUT_ADDITIONAL_INSTRUCTIONS"),
-		Model:                  envOrDefault("INPUT_MODEL", "sonnet"),
+		Model:                  os.Getenv("INPUT_MODEL"),
 		BlockedPaths:           ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
 		FooterType:             "implementation",
 		MaxRetries:             envOrDefaultInt("INPUT_MAX_RETRIES", 3),
@@ -122,6 +119,9 @@ func LoadSecurityConfig() (*Config, error) {
 func (c *Config) validateTask() error {
 	if c.Prompt == "" && c.Skill == "" {
 		return fmt.Errorf("at least one of 'prompt' or 'skill' must be provided")
+	}
+	if c.Model == "" {
+		return fmt.Errorf("'model' must be provided")
 	}
 	return nil
 }

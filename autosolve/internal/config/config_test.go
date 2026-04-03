@@ -16,6 +16,7 @@ func TestLoadAssessConfig_RequiresPromptOrSkill(t *testing.T) {
 func TestLoadAssessConfig_AcceptsPrompt(t *testing.T) {
 	clearInputEnv(t)
 	t.Setenv("INPUT_PROMPT", "fix the bug")
+	t.Setenv("INPUT_MODEL", "claude-opus-4-6")
 	cfg, err := LoadAssessConfig()
 	if err != nil {
 		t.Fatal(err)
@@ -31,6 +32,7 @@ func TestLoadAssessConfig_AcceptsPrompt(t *testing.T) {
 func TestLoadAssessConfig_AcceptsSkill(t *testing.T) {
 	clearInputEnv(t)
 	t.Setenv("INPUT_SKILL", "path/to/skill.md")
+	t.Setenv("INPUT_MODEL", "claude-opus-4-6")
 	cfg, err := LoadAssessConfig()
 	if err != nil {
 		t.Fatal(err)
@@ -43,6 +45,7 @@ func TestLoadAssessConfig_AcceptsSkill(t *testing.T) {
 func TestLoadImplementConfig_ValidatesPR(t *testing.T) {
 	clearInputEnv(t)
 	t.Setenv("INPUT_PROMPT", "fix it")
+	t.Setenv("INPUT_MODEL", "claude-opus-4-6")
 	t.Setenv("INPUT_CREATE_PR", "true")
 	// Missing fork_owner, fork_repo, etc.
 	_, err := LoadImplementConfig()
@@ -54,6 +57,7 @@ func TestLoadImplementConfig_ValidatesPR(t *testing.T) {
 func TestLoadImplementConfig_NoPRCreation(t *testing.T) {
 	clearInputEnv(t)
 	t.Setenv("INPUT_PROMPT", "fix it")
+	t.Setenv("INPUT_MODEL", "claude-opus-4-6")
 	t.Setenv("INPUT_CREATE_PR", "false")
 	cfg, err := LoadImplementConfig()
 	if err != nil {
@@ -67,6 +71,7 @@ func TestLoadImplementConfig_NoPRCreation(t *testing.T) {
 func TestLoadImplementConfig_Defaults(t *testing.T) {
 	clearInputEnv(t)
 	t.Setenv("INPUT_PROMPT", "fix it")
+	t.Setenv("INPUT_MODEL", "claude-opus-4-6")
 	t.Setenv("INPUT_CREATE_PR", "false")
 	cfg, err := LoadImplementConfig()
 	if err != nil {
@@ -74,9 +79,6 @@ func TestLoadImplementConfig_Defaults(t *testing.T) {
 	}
 	if cfg.MaxRetries != 3 {
 		t.Errorf("expected MaxRetries=3, got %d", cfg.MaxRetries)
-	}
-	if cfg.Model != "sonnet" {
-		t.Errorf("expected Model=sonnet, got %q", cfg.Model)
 	}
 	if cfg.GitUserName != "autosolve[bot]" {
 		t.Errorf("expected default git user name, got %q", cfg.GitUserName)

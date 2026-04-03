@@ -146,7 +146,7 @@ func Run(
 			for _, v := range violations {
 				action.LogWarning(v)
 			}
-			action.LogWarning("Security check failed: blocked paths were modified")
+			action.LogWarning("Security check failed: violations found in staged changes")
 			return writeOutputs("FAILED", "", "", resultText, &tracker)
 		}
 		action.LogNotice("Security check passed")
@@ -177,7 +177,9 @@ func Run(
 	return writeOutputs(status, prURL, branchName, resultText, &tracker)
 }
 
-// Cleanup removes credentials and temporary state.
+// Cleanup removes credentials and temporary state. Errors are ignored
+// because these are best-effort: the credential helper or fork remote
+// may not have been configured yet if the run failed early.
 func Cleanup(gitClient git.Client) {
 	_ = gitClient.Config("--local", "--unset", "credential.helper")
 	_, _ = gitClient.Remote("remove", "fork")
@@ -303,10 +305,12 @@ func pushAndPR(
 			p = p[:idx]
 		}
 		p = strings.TrimSpace(p)
-		if len(p) > maxCommitSubjectLen {
-			p = p[:maxCommitSubjectLen]
+		prefix := "autosolve: "
+		maxLen := maxCommitSubjectLen - len(prefix)
+		if len(p) > maxLen {
+			p = p[:maxLen]
 		}
-		pullRequestTitle = "autosolve: " + p
+		pullRequestTitle = prefix + p
 	}
 
 	commitMsg := pullRequestTitle
@@ -337,21 +341,12 @@ func pushAndPR(
 		}
 	}
 
-	// Build PR title
-	prTitle := cfg.PullRequestTitle
-	if prTitle == "" {
-		out, err := gitClient.Log("-1", "--format=%s")
-		if err == nil {
-			prTitle = out
-		}
-	}
-
 	// Create PR
 	prURL, err = ghClient.CreatePR(ctx, github.PullRequestOptions{
 		Repo:   cfg.GithubRepository,
 		Head:   fmt.Sprintf("%s:%s", cfg.ForkOwner, branchName),
 		Base:   baseBranch,
-		Title:  prTitle,
+		Title:  pullRequestTitle,
 		Body:   prBody,
 		Labels: cfg.PRLabels,
 		Draft:  cfg.PRDraft,

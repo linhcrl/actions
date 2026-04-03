@@ -137,7 +137,9 @@ func (t *UsageTracker) Load() {
 // The file is always a complete, self-contained table ready to append
 // to GITHUB_STEP_SUMMARY.
 func (t *UsageTracker) Save() {
-	_ = os.WriteFile(UsageSummaryPath(), []byte(t.FormatSummary()), 0644)
+	if err := os.WriteFile(UsageSummaryPath(), []byte(t.FormatSummary()), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: failed to write usage summary: %v\n", err)
+	}
 }
 
 // ParseSummary parses a markdown usage table (as produced by
