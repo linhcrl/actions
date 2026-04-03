@@ -3,6 +3,7 @@ package implement
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,11 +51,15 @@ func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.R
 	data, _ := json.Marshal(out)
 	os.WriteFile(opts.OutputFile, data, 0644)
 
-	return &claude.Result{
+	result := &claude.Result{
 		ResultText: resultText,
 		SessionID:  sessionID,
 		ExitCode:   exitCode,
-	}, nil
+	}
+	if resultText == "" {
+		return result, fmt.Errorf("claude produced empty result (exit code %d)", exitCode)
+	}
+	return result, nil
 }
 
 type mockGHClient struct {

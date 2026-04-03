@@ -50,7 +50,6 @@ func Run(
 	action.LogInfo(fmt.Sprintf("Running implementation with model: %s (max retries: %d)", cfg.Model, cfg.MaxRetries))
 
 	outputFile := filepath.Join(tmpDir, "implementation.json")
-	resultFile := filepath.Join(tmpDir, "implementation_result.txt")
 
 	var (
 		sessionID  string
@@ -82,31 +81,30 @@ func Run(
 			}
 		}
 
-		result, err := runner.Run(ctx, opts)
-		if err != nil {
-			return fmt.Errorf("running claude (attempt %d): %w", attempt, err)
+		logAttempt := func(r *claude.Result) {
+			tracker.Record(fmt.Sprintf("implement (attempt %d)", attempt), r.Usage)
+			action.LogInfo(fmt.Sprintf("Attempt %d usage: input=%d output=%d cost=$%.4f",
+				attempt, r.Usage.InputTokens, r.Usage.OutputTokens, r.Usage.CostUSD))
+			action.SaveLogArtifact(outputFile, fmt.Sprintf("implementation_attempt_%d.json", attempt))
+			sessionID = claude.ExtractSessionID(outputFile)
 		}
-		section := fmt.Sprintf("implement (attempt %d)", attempt)
-		tracker.Record(section, result.Usage)
-		action.LogInfo(fmt.Sprintf("Attempt %d usage: input=%d output=%d cost=$%.4f",
-			attempt, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
-		if result.ExitCode != 0 {
-			action.LogWarning(fmt.Sprintf("Claude CLI exited with code %d on attempt %d", result.ExitCode, attempt))
+
+		result, err := runner.Run(ctx, opts)
+		logAttempt(result)
+		if err != nil {
+			action.LogWarning(fmt.Sprintf("Claude failed on attempt %d: %v", attempt, err))
+			continue
 		}
 
 		// Extract result
 		var positive bool
 		resultText, positive, err = claude.ExtractResult(outputFile, "IMPLEMENTATION_RESULT")
-		action.SaveLogArtifact(outputFile, fmt.Sprintf("implementation_attempt_%d.json", attempt))
-		if err != nil || resultText == "" {
-			action.LogWarning(fmt.Sprintf("No result text extracted from Claude output on attempt %d — see uploaded artifacts for raw output", attempt))
-		} else {
-			action.LogInfo(fmt.Sprintf("Claude result (attempt %d):", attempt))
-			action.LogInfo(resultText)
+		if err != nil {
+			action.LogWarning(fmt.Sprintf("No result text extracted from Claude output on attempt %d — see uploaded artifacts for raw output - retrying", attempt))
+			continue
 		}
-
-		// Save session ID for retry
-		sessionID = claude.ExtractSessionID(outputFile)
+		action.LogInfo(fmt.Sprintf("Claude result (attempt %d):", attempt))
+		action.LogInfo(resultText)
 
 		if positive {
 			// If no PR body template is configured, Claude must write
@@ -114,24 +112,16 @@ func Run(
 			// attempt so we retry rather than falling back to a low-quality body.
 			if cfg.CreatePR && cfg.PRBodyTemplate == "" {
 				if _, statErr := os.Stat(".autosolve-pr-body"); statErr != nil {
-					action.LogWarning(fmt.Sprintf("Attempt %d succeeded but .autosolve-pr-body was not written — retrying", attempt))
+					action.LogWarning(fmt.Sprintf("Attempt %d succeeded but .autosolve-pr-body was not written - retrying", attempt))
 					continue
 				}
 			}
 			action.LogNotice(fmt.Sprintf("Implementation succeeded on attempt %d", attempt))
 			implStatus = "SUCCESS"
-			if err := os.WriteFile(resultFile, []byte(resultText), 0644); err != nil {
-				action.LogWarning(fmt.Sprintf("Failed to write result file: %v", err))
-			}
 			break
 		}
 
 		action.LogWarning(fmt.Sprintf("Attempt %d did not succeed", attempt))
-		if resultText != "" {
-			if err := os.WriteFile(resultFile, []byte(resultText), 0644); err != nil {
-				action.LogWarning(fmt.Sprintf("Failed to write result file: %v", err))
-			}
-		}
 
 		if attempt < cfg.MaxRetries {
 			action.LogInfo(fmt.Sprintf("Waiting %s before retry...", RetryDelay))
@@ -406,9 +396,7 @@ func copyPRBody(tmpDir string) {
 	_ = os.Remove(".autosolve-pr-body")
 }
 
-func buildPRBody(
-	cfg *config.Config, tmpDir, branchName, resultText string,
-) string {
+func buildPRBody(cfg *config.Config, tmpDir, branchName, resultText string) string {
 	var body string
 
 	if cfg.PRBodyTemplate != "" {
@@ -621,22 +609,25 @@ func aiSecurityReview(
 			PromptFile:   promptFile,
 			OutputFile:   outputFile,
 		})
-		if err != nil {
-			return fmt.Errorf("AI security review batch %d: %w", batchNum, err)
-		}
 		tracker.Record("security review", result.Usage)
 		action.LogInfo(fmt.Sprintf("Security review batch %d usage: input=%d output=%d cost=$%.4f",
 			batchNum, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
-
-		resultText, positive, _ := claude.ExtractResult(outputFile, "SECURITY_REVIEW")
 		action.SaveLogArtifact(outputFile, fmt.Sprintf("security_review_%d.json", batchNum))
-		if result.ExitCode != 0 || resultText == "" {
+		if err != nil {
 			// Best-effort unstage; safe to continue because the return
 			// below stops execution before any push can occur.
-			if err := gitClient.ResetHead(); err != nil {
-				action.LogWarning(fmt.Sprintf("failed to reset staged changes: %v", err))
+			if resetErr := gitClient.ResetHead(); resetErr != nil {
+				action.LogWarning(fmt.Sprintf("failed to reset staged changes: %v", resetErr))
 			}
-			return fmt.Errorf("AI security review batch %d did not produce a result (exit code %d)", batchNum, result.ExitCode)
+			return fmt.Errorf("AI security review batch %d: %w", batchNum, err)
+		}
+
+		resultText, positive, err := claude.ExtractResult(outputFile, "SECURITY_REVIEW")
+		if err != nil {
+			if resetErr := gitClient.ResetHead(); resetErr != nil {
+				action.LogWarning(fmt.Sprintf("failed to reset staged changes: %v", resetErr))
+			}
+			return fmt.Errorf("AI security review batch %d: %w", batchNum, err)
 		}
 
 		if !positive {

@@ -3,6 +3,7 @@ package assess
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -19,7 +20,7 @@ type mockRunner struct {
 
 func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.Result, error) {
 	if m.err != nil {
-		return nil, m.err
+		return &claude.Result{}, m.err
 	}
 	// Write the mock output to the output file
 	out := struct {
@@ -34,11 +35,15 @@ func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.R
 	data, _ := json.Marshal(out)
 	os.WriteFile(opts.OutputFile, data, 0644)
 
-	return &claude.Result{
+	result := &claude.Result{
 		ResultText: m.resultText,
 		SessionID:  m.sessionID,
 		ExitCode:   m.exitCode,
-	}, nil
+	}
+	if m.resultText == "" {
+		return result, fmt.Errorf("claude produced empty result (exit code %d)", m.exitCode)
+	}
+	return result, nil
 }
 
 func TestRun_Proceed(t *testing.T) {

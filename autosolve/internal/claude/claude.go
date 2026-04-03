@@ -220,22 +220,26 @@ func (r *CLIRunner) Run(ctx context.Context, opts RunOptions) (*Result, error) {
 	defer outFile.Close()
 	cmd.Stdout = outFile
 
-	exitCode := 0
+	var result Result
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
+			result.ExitCode = exitErr.ExitCode()
 		} else {
-			return nil, fmt.Errorf("running claude CLI: %w", err)
+			return &result, fmt.Errorf("running claude CLI: %w", err)
 		}
 	}
 
-	// Parse the output
-	result, err := parseOutput(opts.OutputFile)
-	if err != nil {
-		return &Result{ExitCode: exitCode}, nil
+	// Parse the output. Always return a non-nil Result so callers can
+	// unconditionally access usage and session ID.
+	parsed, parseErr := parseOutput(opts.OutputFile)
+	if parseErr != nil {
+		return &result, fmt.Errorf("parsing claude output: %w", parseErr)
 	}
-	result.ExitCode = exitCode
-	return result, nil
+	parsed.ExitCode = result.ExitCode
+	if parsed.ResultText == "" {
+		return parsed, fmt.Errorf("claude produced empty result (exit code %d)", parsed.ExitCode)
+	}
+	return parsed, nil
 }
 
 // ExtractResult extracts the result text from Claude JSON output and checks

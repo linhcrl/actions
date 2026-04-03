@@ -35,21 +35,18 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 		PromptFile:   promptFile,
 		OutputFile:   outputFile,
 	})
-	if err != nil {
-		return fmt.Errorf("running claude: %w", err)
-	}
 	tracker.Record("assess", result.Usage)
 	tracker.Save()
 	action.LogInfo(fmt.Sprintf("Assessment usage: input=%d output=%d cost=$%.4f",
 		result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
-	if result.ExitCode != 0 {
-		action.LogWarning(fmt.Sprintf("Claude CLI exited with code %d", result.ExitCode))
+	if err != nil {
+		return fmt.Errorf("running claude: %w", err)
 	}
 
 	// Extract result
 	resultText, positive, err := claude.ExtractResult(outputFile, "ASSESSMENT_RESULT")
 	action.SaveLogArtifact(outputFile, "assessment.json")
-	if err != nil || resultText == "" {
+	if err != nil {
 		action.LogError("No assessment result found in Claude output")
 		action.SetOutput("assessment", "ERROR")
 		return fmt.Errorf("no assessment result found in Claude output")
