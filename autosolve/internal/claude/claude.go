@@ -22,7 +22,8 @@ type RunOptions struct {
 	Model        string
 	AllowedTools string
 	MaxTurns     int
-	PromptFile   string // path to prompt file (used as stdin on first attempt)
+	Prompt       string // prompt text (used as stdin on first attempt)
+	PromptFile   string // path to prompt file (used as stdin on first attempt; Prompt takes precedence)
 	Resume       string // session ID for --resume
 	RetryPrompt  string // prompt text for retry attempts (used as stdin with --resume)
 	OutputFile   string // path to write JSON output
@@ -195,12 +196,18 @@ func (r *CLIRunner) Run(ctx context.Context, opts RunOptions) (*Result, error) {
 		args = append(args, "--resume", opts.Resume)
 	}
 
+	if opts.Prompt != "" && opts.PromptFile != "" {
+		return nil, fmt.Errorf("Prompt and PromptFile are mutually exclusive")
+	}
+
 	cmd := exec.CommandContext(ctx, "claude", args...)
 	cmd.Stderr = os.Stderr
 
-	// Set up stdin: either the prompt file or the retry prompt text
+	// Set up stdin: direct prompt text, prompt file, or retry prompt
 	if opts.Resume != "" && opts.RetryPrompt != "" {
 		cmd.Stdin = strings.NewReader(opts.RetryPrompt)
+	} else if opts.Prompt != "" {
+		cmd.Stdin = strings.NewReader(opts.Prompt)
 	} else if opts.PromptFile != "" {
 		f, err := os.Open(opts.PromptFile)
 		if err != nil {
