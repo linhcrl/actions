@@ -53,11 +53,6 @@ func Build(cfg *config.Config, tmpDir string) (string, error) {
 		b.Write(content)
 		b.WriteString("\n")
 	}
-	if cfg.AdditionalInstructions != "" {
-		b.WriteString("\n")
-		b.WriteString(cfg.AdditionalInstructions)
-		b.WriteString("\n")
-	}
 	b.WriteString("</task>\n\n")
 
 	// Footer

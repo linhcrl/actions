@@ -97,26 +97,6 @@ func TestBuild_WithSkillFile(t *testing.T) {
 	}
 }
 
-func TestBuild_WithAdditionalInstructions(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfg := &config.Config{
-		Prompt:                 "Fix it",
-		AdditionalInstructions: "Also run linter",
-		BlockedPaths:           []string{".github/workflows/"},
-		FooterType:             "implementation",
-	}
-
-	path, err := Build(cfg, tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), "Also run linter") {
-		t.Error("expected additional instructions in prompt")
-	}
-}
-
 func TestBuild_CustomAssessmentCriteria(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{

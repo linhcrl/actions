@@ -14,10 +14,6 @@ inputs:
     description: Path to a skill/prompt file relative to the repo root.
     required: false
     default: ""
-  additional_instructions:
-    description: Extra context appended after the task prompt but before the assessment footer.
-    required: false
-    default: ""
   assessment_criteria:
     description: Custom criteria for the assessment. If not provided, uses default criteria.
     required: false
@@ -81,7 +77,6 @@ runs:
       env:
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_SKILL: ${{ inputs.skill }}
-        INPUT_ADDITIONAL_INSTRUCTIONS: ${{ inputs.additional_instructions }}
         INPUT_ASSESSMENT_CRITERIA: ${{ inputs.assessment_criteria }}
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_BLOCKED_PATHS: ${{ inputs.blocked_paths }}

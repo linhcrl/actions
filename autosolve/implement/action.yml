@@ -14,10 +14,6 @@ inputs:
     description: Path to a skill/prompt file relative to the repo root.
     required: false
     default: ""
-  additional_instructions:
-    description: Extra instructions appended after the task prompt.
-    required: false
-    default: ""
   allowed_tools:
     description: Claude --allowedTools string.
     required: false
@@ -156,7 +152,6 @@ runs:
         SCRIPTS_DIR: ${{ github.action_path }}/../scripts
         INPUT_PROMPT: ${{ inputs.prompt }}
         INPUT_SKILL: ${{ inputs.skill }}
-        INPUT_ADDITIONAL_INSTRUCTIONS: ${{ inputs.additional_instructions }}
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         INPUT_MAX_RETRIES: ${{ inputs.max_retries }}
