@@ -67,6 +67,7 @@ func Run(
 			AllowedTools: cfg.AllowedTools,
 			MaxTurns:     200,
 			OutputFile:   outputFile,
+			ContextVars:  cfg.ContextVars,
 		}
 
 		if attempt == 1 {
@@ -307,7 +308,7 @@ func pushAndPR(
 		pullRequestTitle = commitSubject
 	}
 	if pullRequestTitle == "" {
-		p := cfg.Prompt
+		p := cfg.SystemPrompt
 		if p == "" {
 			p = "automated change"
 		}

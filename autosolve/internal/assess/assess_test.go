@@ -52,7 +52,7 @@ func TestRun_Proceed(t *testing.T) {
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
 	cfg := &config.Config{
-		Prompt:       "Fix the bug",
+		SystemPrompt: "Fix the bug",
 		Model:        "sonnet",
 		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "assessment",
@@ -81,7 +81,7 @@ func TestRun_Skip(t *testing.T) {
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
 	cfg := &config.Config{
-		Prompt:       "Refactor everything",
+		SystemPrompt: "Refactor everything",
 		Model:        "sonnet",
 		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "assessment",
@@ -103,7 +103,7 @@ func TestRun_NoResult(t *testing.T) {
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
 	cfg := &config.Config{
-		Prompt:       "Fix it",
+		SystemPrompt: "Fix it",
 		Model:        "sonnet",
 		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "assessment",

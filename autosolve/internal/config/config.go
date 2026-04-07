@@ -17,8 +17,9 @@ const (
 // Config holds validated configuration for an autosolve run.
 type Config struct {
 	// Task inputs
-	Prompt             string
+	SystemPrompt       string
 	Skill              string
+	ContextVars        []string // env var names to pass through to Claude
 	AssessmentCriteria string
 	Model              string
 	BlockedPaths       []string
@@ -53,8 +54,9 @@ type Config struct {
 // LoadAssessConfig reads config for the assess subcommand.
 func LoadAssessConfig() (*Config, error) {
 	c := &Config{
-		Prompt:             os.Getenv("INPUT_PROMPT"),
+		SystemPrompt:       os.Getenv("INPUT_SYSTEM_PROMPT"),
 		Skill:              os.Getenv("INPUT_SKILL"),
+		ContextVars:        parseContextVars(os.Getenv("INPUT_CONTEXT_VARS")),
 		AssessmentCriteria: os.Getenv("INPUT_ASSESSMENT_CRITERIA"),
 		Model:              os.Getenv("INPUT_MODEL"),
 		BlockedPaths:       ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
@@ -80,8 +82,9 @@ func LoadImplementConfig() (*Config, error) {
 	}
 
 	c := &Config{
-		Prompt:           os.Getenv("INPUT_PROMPT"),
+		SystemPrompt:     os.Getenv("INPUT_SYSTEM_PROMPT"),
 		Skill:            os.Getenv("INPUT_SKILL"),
+		ContextVars:      parseContextVars(os.Getenv("INPUT_CONTEXT_VARS")),
 		Model:            os.Getenv("INPUT_MODEL"),
 		BlockedPaths:     ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
 		FooterType:       "implementation",
@@ -130,8 +133,8 @@ func LoadSecurityConfig() (*Config, error) {
 }
 
 func (c *Config) validateTask() error {
-	if c.Prompt == "" && c.Skill == "" {
-		return fmt.Errorf("at least one of 'prompt' or 'skill' must be provided")
+	if c.SystemPrompt == "" && c.Skill == "" {
+		return fmt.Errorf("at least one of 'system_prompt' or 'skill' must be provided")
 	}
 	if c.Model == "" {
 		return fmt.Errorf("'model' must be provided")
@@ -165,25 +168,22 @@ func (c *Config) validatePR() error {
 	return nil
 }
 
-// ValidateAuth checks that Claude authentication is configured.
+// ValidateAuth checks that Vertex AI authentication is configured.
 func ValidateAuth() error {
-	if os.Getenv("ANTHROPIC_API_KEY") != "" {
-		return nil
+	if os.Getenv("CLAUDE_CODE_USE_VERTEX") != "1" {
+		return fmt.Errorf("CLAUDE_CODE_USE_VERTEX must be set to '1'")
 	}
-	if os.Getenv("CLAUDE_CODE_USE_VERTEX") == "1" {
-		var missing []string
-		if os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID") == "" {
-			missing = append(missing, "ANTHROPIC_VERTEX_PROJECT_ID")
-		}
-		if os.Getenv("CLOUD_ML_REGION") == "" {
-			missing = append(missing, "CLOUD_ML_REGION")
-		}
-		if len(missing) > 0 {
-			return fmt.Errorf("Vertex AI auth requires: %s", strings.Join(missing, ", "))
-		}
-		return nil
+	var missing []string
+	if os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID") == "" {
+		missing = append(missing, "ANTHROPIC_VERTEX_PROJECT_ID")
 	}
-	return fmt.Errorf("no Claude authentication configured. Set ANTHROPIC_API_KEY or enable Vertex AI (CLAUDE_CODE_USE_VERTEX=1)")
+	if os.Getenv("CLOUD_ML_REGION") == "" {
+		missing = append(missing, "CLOUD_ML_REGION")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("Vertex AI auth requires: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
 
 // ParseBlockedPaths splits a comma-separated blocked paths string into a slice.
@@ -221,6 +221,20 @@ func envBool(key string, def bool) (bool, error) {
 	default:
 		return false, fmt.Errorf("invalid boolean value for %s: %q (expected true or false)", key, os.Getenv(key))
 	}
+}
+
+func parseContextVars(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	var result []string
+	for _, s := range strings.Split(raw, ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
 }
 
 func envOrDefault(key, def string) string {

@@ -22,11 +22,40 @@ type RunOptions struct {
 	Model        string
 	AllowedTools string
 	MaxTurns     int
-	Prompt       string // prompt text (used as stdin on first attempt)
-	PromptFile   string // path to prompt file (used as stdin on first attempt; Prompt takes precedence)
-	Resume       string // session ID for --resume
-	RetryPrompt  string // prompt text for retry attempts (used as stdin with --resume)
-	OutputFile   string // path to write JSON output
+	Prompt       string   // prompt text (used as stdin on first attempt)
+	PromptFile   string   // path to prompt file (used as stdin on first attempt; Prompt takes precedence)
+	Resume       string   // session ID for --resume
+	RetryPrompt  string   // prompt text for retry attempts (used as stdin with --resume)
+	OutputFile   string   // path to write JSON output
+	ContextVars  []string // env var names to pass through to the Claude subprocess
+}
+
+// BaselineEnvVars are environment variables always passed to the Claude CLI
+// subprocess regardless of ContextVars. These are required for the CLI to
+// function and for basic tool operation (git, compilers, etc.).
+//
+// Caller-specified context vars (e.g., ISSUE_TITLE, ISSUE_BODY) must be
+// listed in ContextVars to be visible to Claude.
+var BaselineEnvVars = []string{
+	// System essentials
+	"PATH",
+	"HOME",
+	"USER",
+	"SHELL",
+	"TMPDIR",
+	"LANG",
+	"LC_ALL",
+
+	// Claude CLI authentication (Vertex AI)
+	"CLAUDE_CODE_USE_VERTEX",
+	"ANTHROPIC_VERTEX_PROJECT_ID",
+	"CLOUD_ML_REGION",
+	"GOOGLE_APPLICATION_CREDENTIALS",
+
+	// GitHub Actions runtime
+	"RUNNER_TEMP",
+	"GITHUB_WORKSPACE",
+	"GITHUB_REPOSITORY",
 }
 
 // Result holds parsed Claude CLI output.
@@ -201,6 +230,7 @@ func (r *CLIRunner) Run(ctx context.Context, opts RunOptions) (*Result, error) {
 	}
 
 	cmd := exec.CommandContext(ctx, "claude", args...)
+	cmd.Env = buildEnv(opts.ContextVars)
 	cmd.Stderr = os.Stderr
 
 	// Set up stdin: direct prompt text, prompt file, or retry prompt
@@ -343,4 +373,26 @@ func extractResultText(path string) (string, error) {
 		return "", fmt.Errorf("empty result text")
 	}
 	return result.ResultText, nil
+}
+
+// buildEnv constructs an explicit environment for the Claude CLI subprocess.
+// Only baseline vars and caller-specified context vars are included, so
+// secrets and other sensitive env vars are not leaked to Claude.
+func buildEnv(contextVars []string) []string {
+	vars := make(map[string]bool, len(BaselineEnvVars)+len(contextVars))
+	for _, k := range BaselineEnvVars {
+		vars[k] = true
+	}
+	for _, k := range contextVars {
+		vars[k] = true
+	}
+
+	var env []string
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if vars[key] {
+			env = append(env, entry)
+		}
+	}
+	return env
 }

@@ -3,6 +3,7 @@ package claude
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -197,6 +198,63 @@ func TestParseSummary_Empty(t *testing.T) {
 	if len(sections) != 0 {
 		t.Errorf("expected 0 sections, got %d", len(sections))
 	}
+}
+
+func TestBuildEnv_BaselineOnly(t *testing.T) {
+	t.Setenv("PATH", "/usr/bin")
+	t.Setenv("HOME", "/home/test")
+	t.Setenv("SECRET_TOKEN", "do-not-leak")
+
+	env := buildEnv(nil)
+
+	envMap := envToMap(env)
+	if envMap["PATH"] != "/usr/bin" {
+		t.Errorf("expected PATH in env, got %q", envMap["PATH"])
+	}
+	if envMap["HOME"] != "/home/test" {
+		t.Errorf("expected HOME in env, got %q", envMap["HOME"])
+	}
+	if _, ok := envMap["SECRET_TOKEN"]; ok {
+		t.Error("SECRET_TOKEN should not be in env")
+	}
+}
+
+func TestBuildEnv_WithContextVars(t *testing.T) {
+	t.Setenv("ISSUE_TITLE", "bug report")
+	t.Setenv("ISSUE_BODY", "it's broken")
+	t.Setenv("SECRET_TOKEN", "do-not-leak")
+
+	env := buildEnv([]string{"ISSUE_TITLE", "ISSUE_BODY"})
+
+	envMap := envToMap(env)
+	if envMap["ISSUE_TITLE"] != "bug report" {
+		t.Errorf("expected ISSUE_TITLE in env, got %q", envMap["ISSUE_TITLE"])
+	}
+	if envMap["ISSUE_BODY"] != "it's broken" {
+		t.Errorf("expected ISSUE_BODY in env, got %q", envMap["ISSUE_BODY"])
+	}
+	if _, ok := envMap["SECRET_TOKEN"]; ok {
+		t.Error("SECRET_TOKEN should not be in env")
+	}
+}
+
+func TestBuildEnv_UnsetContextVar(t *testing.T) {
+	// A context var that isn't set in the environment should not appear
+	env := buildEnv([]string{"NONEXISTENT_VAR"})
+
+	envMap := envToMap(env)
+	if _, ok := envMap["NONEXISTENT_VAR"]; ok {
+		t.Error("unset context var should not appear in env")
+	}
+}
+
+func envToMap(env []string) map[string]string {
+	m := make(map[string]string, len(env))
+	for _, entry := range env {
+		key, value, _ := strings.Cut(entry, "=")
+		m[key] = value
+	}
+	return m
 }
 
 func writeJSON(t *testing.T, v interface{}) string {

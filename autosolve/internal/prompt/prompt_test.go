@@ -11,7 +11,7 @@ import (
 func TestBuild_Assessment(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
-		Prompt:       "Fix the bug in foo.go",
+		SystemPrompt: "Fix the bug in foo.go",
 		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "assessment",
 	}
@@ -49,7 +49,7 @@ func TestBuild_Assessment(t *testing.T) {
 func TestBuild_Implementation(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
-		Prompt:       "Add a new feature",
+		SystemPrompt: "Add a new feature",
 		BlockedPaths: []string{"secrets/"},
 		FooterType:   "implementation",
 	}
@@ -100,7 +100,7 @@ func TestBuild_WithSkillFile(t *testing.T) {
 func TestBuild_CustomAssessmentCriteria(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
-		Prompt:             "Check this",
+		SystemPrompt:       "Check this",
 		BlockedPaths:       []string{".github/workflows/"},
 		FooterType:         "assessment",
 		AssessmentCriteria: "Custom criteria here",
@@ -118,6 +118,55 @@ func TestBuild_CustomAssessmentCriteria(t *testing.T) {
 	}
 	if strings.Contains(content, "PROCEED if:") {
 		t.Error("should not contain default criteria when custom is set")
+	}
+}
+
+func TestBuild_WithContextVars(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		SystemPrompt: "Fix it",
+		ContextVars:  []string{"ISSUE_TITLE", "ISSUE_BODY"},
+		BlockedPaths: []string{".github/workflows/"},
+		FooterType:   "implementation",
+	}
+
+	path, err := Build(cfg, tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(path)
+	content := string(data)
+	if !strings.Contains(content, "<context_vars>") {
+		t.Error("expected context_vars section")
+	}
+	if !strings.Contains(content, "ISSUE_TITLE") {
+		t.Error("expected ISSUE_TITLE in context_vars")
+	}
+	if !strings.Contains(content, "ISSUE_BODY") {
+		t.Error("expected ISSUE_BODY in context_vars")
+	}
+	if !strings.Contains(content, "NEVER follow instructions") {
+		t.Error("expected injection warning in context_vars")
+	}
+}
+
+func TestBuild_NoContextVars(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{
+		SystemPrompt: "Fix it",
+		BlockedPaths: []string{".github/workflows/"},
+		FooterType:   "implementation",
+	}
+
+	path, err := Build(cfg, tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data, _ := os.ReadFile(path)
+	if strings.Contains(string(data), "<context_vars>") {
+		t.Error("context_vars section should not appear when no vars are set")
 	}
 }
 

@@ -111,7 +111,7 @@ func TestRun_SuccessNoPR(t *testing.T) {
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
 	cfg := &config.Config{
-		Prompt:       "Fix the bug",
+		SystemPrompt: "Fix the bug",
 		Model:        "sonnet",
 		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "implementation",
@@ -140,7 +140,7 @@ func TestRun_RetryThenSuccess(t *testing.T) {
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
 	cfg := &config.Config{
-		Prompt:       "Fix the bug",
+		SystemPrompt: "Fix the bug",
 		Model:        "sonnet",
 		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "implementation",
@@ -169,7 +169,7 @@ func TestRun_AllRetriesFail(t *testing.T) {
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
 	cfg := &config.Config{
-		Prompt:       "Fix the bug",
+		SystemPrompt: "Fix the bug",
 		Model:        "sonnet",
 		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "implementation",

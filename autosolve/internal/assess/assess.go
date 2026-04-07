@@ -34,6 +34,7 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 		MaxTurns:     30,
 		PromptFile:   promptFile,
 		OutputFile:   outputFile,
+		ContextVars:  cfg.ContextVars,
 	})
 	action.LogResult(&tracker, result, "assess", outputFile)
 	if saveErr := tracker.Save(); saveErr != nil {

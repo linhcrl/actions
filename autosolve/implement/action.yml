@@ -6,12 +6,25 @@ inputs:
     description: "Claude CLI version to install (e.g. '2.1.79' or 'latest')."
     required: false
     default: "2.1.79"
-  prompt:
-    description: The task for Claude to implement.
+  system_prompt:
+    description: >
+      Trusted instructions for Claude describing the task to implement.
+      Do not embed untrusted user input (e.g., issue titles/bodies) here.
+      Pass user-supplied data via environment variables and list them in context_vars.
     required: false
     default: ""
   skill:
     description: Path to a skill/prompt file relative to the repo root.
+    required: false
+    default: ""
+  context_vars:
+    description: >
+      Comma-separated list of environment variable names to pass through to Claude.
+      Use this to provide untrusted user input (e.g., issue titles/bodies) safely.
+      Claude is automatically told which variables are available and instructed to
+      read them — you do not need to reference them in system_prompt.
+      Claude will only have access to these variables plus a baseline set of
+      system and authentication variables (PATH, HOME, etc.).
     required: false
     default: ""
   allowed_tools:
@@ -150,8 +163,9 @@ runs:
       run: $RUNNER_TEMP/autosolve implement
       env:
         SCRIPTS_DIR: ${{ github.action_path }}/../scripts
-        INPUT_PROMPT: ${{ inputs.prompt }}
+        INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
         INPUT_SKILL: ${{ inputs.skill }}
+        INPUT_CONTEXT_VARS: ${{ inputs.context_vars }}
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         INPUT_MAX_RETRIES: ${{ inputs.max_retries }}
