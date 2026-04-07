@@ -186,20 +186,43 @@ func ValidateAuth() error {
 	return nil
 }
 
+// requiredBlockedPaths are always blocked regardless of caller configuration.
+// Workflow files must never be modifiable — they can run arbitrary code.
+var requiredBlockedPaths = []string{".github/"}
+
 // ParseBlockedPaths splits a comma-separated blocked paths string into a slice.
-// Returns the default blocked path if raw is empty.
+// The required paths are always included.
 func ParseBlockedPaths(raw string) []string {
-	if raw == "" {
-		return []string{".github/workflows/"}
+	paths := make(map[string]bool)
+	for _, p := range requiredBlockedPaths {
+		paths[p] = true
 	}
-	var paths []string
 	for _, p := range strings.Split(raw, ",") {
 		p = strings.TrimSpace(p)
 		if p != "" {
-			paths = append(paths, p)
+			paths[p] = true
 		}
 	}
-	return paths
+	var result []string
+	// Required paths first for consistent ordering
+	for _, p := range requiredBlockedPaths {
+		result = append(result, p)
+	}
+	for p := range paths {
+		if !contains(requiredBlockedPaths, p) {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+func contains(ss []string, s string) bool {
+	for _, v := range ss {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // SecurityReviewModel returns a lightweight model suitable for the AI

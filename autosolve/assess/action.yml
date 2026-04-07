@@ -36,7 +36,9 @@ inputs:
     required: false
     default: "claude-opus-4-6"
   blocked_paths:
-    description: Comma-separated path prefixes that cannot be modified (injected into security preamble).
+    description: >
+      Comma-separated path prefixes that cannot be modified.
+      .github/ is always blocked and cannot be removed.
     required: false
     default: ".github/workflows/"
   working_directory:

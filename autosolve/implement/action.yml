@@ -80,7 +80,9 @@ inputs:
     required: false
     default: ""
   blocked_paths:
-    description: "Comma-separated path prefixes that cannot be modified. WARNING: overriding removes .github/workflows/ default."
+    description: >
+      Comma-separated path prefixes that cannot be modified.
+      .github/ is always blocked and cannot be removed.
     required: false
     default: ".github/workflows/"
   git_user_name:

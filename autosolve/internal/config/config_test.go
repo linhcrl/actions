@@ -118,10 +118,10 @@ func TestParseBlockedPaths(t *testing.T) {
 		input string
 		want  []string
 	}{
-		{"empty defaults", "", []string{".github/workflows/"}},
-		{"single", ".github/", []string{".github/"}},
-		{"multiple", ".github/workflows/, secrets/, .env", []string{".github/workflows/", "secrets/", ".env"}},
-		{"with whitespace", " foo/ , bar/ ", []string{"foo/", "bar/"}},
+		{"empty defaults", "", []string{".github/"}},
+		{"caller adds extra", "secrets/, .env", []string{".github/", "secrets/", ".env"}},
+		{"caller includes required", ".github/, secrets/", []string{".github/", "secrets/"}},
+		{"caller cannot remove required", "only-this/", []string{".github/", "only-this/"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
