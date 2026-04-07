@@ -88,7 +88,7 @@ runs:
       id: assess
       shell: bash
       working-directory: ${{ inputs.working_directory }}
-      run: "$RUNNER_TEMP/autosolve" assess
+      run: $RUNNER_TEMP/autosolve assess
       env:
         INPUT_SYSTEM_PROMPT: ${{ inputs.system_prompt }}
         INPUT_SKILL: ${{ inputs.skill }}
@@ -96,3 +96,11 @@ runs:
         INPUT_ASSESSMENT_CRITERIA: ${{ inputs.assessment_criteria }}
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_BLOCKED_PATHS: ${{ inputs.blocked_paths }}
+
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: autosolve-assess-logs
+        path: ${{ runner.temp }}/autosolve-logs/
+        if-no-files-found: ignore

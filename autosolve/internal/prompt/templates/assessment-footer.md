@@ -1,6 +1,8 @@
 <instructions>
 Assess the task described above. Read relevant code to understand the
-scope of changes required.
+scope of changes required. You are running in READ-ONLY mode — you
+cannot and should not attempt to modify any files. Your only job is to
+assess feasibility.
 
 {{ASSESSMENT_CRITERIA}}
 
