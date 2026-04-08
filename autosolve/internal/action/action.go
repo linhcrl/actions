@@ -3,6 +3,8 @@
 package action
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -61,7 +63,9 @@ func TruncateOutput(maxLines int, text string) string {
 // When verbose is true, the full output is written to a collapsible group
 // in the step log. Call immediately after runner.Run and before checking
 // the error so that usage is captured even on failure.
-func LogResult(tracker *claude.UsageTracker, result *claude.Result, section, outputFile string, verbose bool) {
+func LogResult(
+	tracker *claude.UsageTracker, result *claude.Result, section, outputFile string, verbose bool,
+) {
 	tracker.Record(section, result.Usage)
 	LogInfo(fmt.Sprintf("%s usage: input=%d output=%d cost=$%.4f",
 		section, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
@@ -71,12 +75,18 @@ func LogResult(tracker *claude.UsageTracker, result *claude.Result, section, out
 }
 
 // logOutputGroup writes the contents of outputFile into a collapsible
-// ::group:: block in the GitHub Actions step log.
+// ::group:: block in the GitHub Actions step log. JSON files are
+// pretty-printed for readability.
 func logOutputGroup(section, outputFile string) {
 	data, err := os.ReadFile(outputFile)
 	if err != nil {
 		LogWarning(fmt.Sprintf("failed to read output for log group: %v", err))
 		return
+	}
+	// Pretty-print JSON output for readability.
+	var pretty bytes.Buffer
+	if json.Indent(&pretty, data, "", "  ") == nil {
+		data = pretty.Bytes()
 	}
 	fmt.Fprintf(os.Stderr, "::group::Claude output: %s\n", section)
 	fmt.Fprint(os.Stderr, string(data))
