@@ -5,7 +5,6 @@ package action
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/cockroachdb/actions/autosolve/internal/claude"
@@ -58,41 +57,33 @@ func TruncateOutput(maxLines int, text string) string {
 	return fmt.Sprintf("%s\n[... truncated (%d lines total, showing first %d)]", truncated, len(lines), maxLines)
 }
 
-// SaveLogArtifact copies a file to $RUNNER_TEMP/autosolve-logs/ so the calling
-// workflow can upload it as an artifact for debugging.
-func SaveLogArtifact(srcPath, name string) error {
-	dir := os.Getenv("RUNNER_TEMP")
-	if dir == "" {
-		dir = os.TempDir()
-	}
-	logDir := filepath.Join(dir, "autosolve-logs")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return fmt.Errorf("creating log artifact dir: %w", err)
-	}
-	data, err := os.ReadFile(srcPath)
-	if err != nil {
-		return fmt.Errorf("reading %s for artifact: %w", srcPath, err)
-	}
-	dst := filepath.Join(logDir, name)
-	if err := os.WriteFile(dst, data, 0644); err != nil {
-		return fmt.Errorf("writing log artifact %s: %w", dst, err)
-	}
-	LogInfo(fmt.Sprintf("Saved log artifact: %s", dst))
-	return nil
-}
-
-// LogResult records usage for a Claude invocation, logs token counts, and
-// saves the output file as a log artifact. Call immediately after runner.Run
-// and before checking the error so that usage and artifacts are captured
-// even on failure.
-func LogResult(tracker *claude.UsageTracker, result *claude.Result, section, outputFile string) {
+// LogResult records usage for a Claude invocation and logs token counts.
+// When verbose is true, the full output is written to a collapsible group
+// in the step log. Call immediately after runner.Run and before checking
+// the error so that usage is captured even on failure.
+func LogResult(tracker *claude.UsageTracker, result *claude.Result, section, outputFile string, verbose bool) {
 	tracker.Record(section, result.Usage)
 	LogInfo(fmt.Sprintf("%s usage: input=%d output=%d cost=$%.4f",
 		section, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
-	artifactName := strings.NewReplacer(" ", "_", "(", "", ")", "").Replace(section) + ".json"
-	if err := SaveLogArtifact(outputFile, artifactName); err != nil {
-		LogWarning(fmt.Sprintf("failed to save log artifact: %v", err))
+	if verbose {
+		logOutputGroup(section, outputFile)
 	}
+}
+
+// logOutputGroup writes the contents of outputFile into a collapsible
+// ::group:: block in the GitHub Actions step log.
+func logOutputGroup(section, outputFile string) {
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		LogWarning(fmt.Sprintf("failed to read output for log group: %v", err))
+		return
+	}
+	fmt.Fprintf(os.Stderr, "::group::Claude output: %s\n", section)
+	fmt.Fprint(os.Stderr, string(data))
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		fmt.Fprintln(os.Stderr)
+	}
+	fmt.Fprintln(os.Stderr, "::endgroup::")
 }
 
 func appendToFile(path, content string) error {

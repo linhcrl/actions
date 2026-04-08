@@ -41,6 +41,14 @@ inputs:
       .github/ is always blocked and cannot be removed.
     required: false
     default: ".github/workflows/"
+  verbose_logging:
+    description: >
+      Log full Claude output in collapsible groups in the step log.
+      Logs may contain source code snippets, environment variable
+      values, or other repository content quoted in Claude's responses.
+      Security review output is never logged regardless of this setting.
+    required: false
+    default: "false"
   working_directory:
     description: Directory to run in (relative to workspace root). Defaults to workspace root.
     required: false
@@ -96,11 +104,4 @@ runs:
         INPUT_ASSESSMENT_CRITERIA: ${{ inputs.assessment_criteria }}
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_BLOCKED_PATHS: ${{ inputs.blocked_paths }}
-
-    - name: Upload logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: autosolve-assess-logs
-        path: ${{ runner.temp }}/autosolve-logs/
-        if-no-files-found: ignore
+        INPUT_VERBOSE_LOGGING: ${{ inputs.verbose_logging }}

@@ -25,6 +25,9 @@ type Config struct {
 	BlockedPaths       []string
 	FooterType         string // "assessment" or "implementation"
 
+	// Logging
+	VerboseLogging bool // log full Claude output in step logs
+
 	// Implementation-specific
 	MaxRetries   int
 	AllowedTools string
@@ -53,6 +56,10 @@ type Config struct {
 
 // LoadAssessConfig reads config for the assess subcommand.
 func LoadAssessConfig() (*Config, error) {
+	verboseLogging, err := envBool("INPUT_VERBOSE_LOGGING", false)
+	if err != nil {
+		return nil, err
+	}
 	c := &Config{
 		SystemPrompt:       os.Getenv("INPUT_SYSTEM_PROMPT"),
 		Skill:              os.Getenv("INPUT_SKILL"),
@@ -61,6 +68,7 @@ func LoadAssessConfig() (*Config, error) {
 		Model:              os.Getenv("INPUT_MODEL"),
 		BlockedPaths:       ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
 		FooterType:         "assessment",
+		VerboseLogging:     verboseLogging,
 
 		GithubRepository: os.Getenv("GITHUB_REPOSITORY"),
 	}
@@ -80,6 +88,10 @@ func LoadImplementConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	verboseLogging, err := envBool("INPUT_VERBOSE_LOGGING", false)
+	if err != nil {
+		return nil, err
+	}
 
 	c := &Config{
 		SystemPrompt:     os.Getenv("INPUT_SYSTEM_PROMPT"),
@@ -88,6 +100,7 @@ func LoadImplementConfig() (*Config, error) {
 		Model:            os.Getenv("INPUT_MODEL"),
 		BlockedPaths:     ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
 		FooterType:       "implementation",
+		VerboseLogging:   verboseLogging,
 		MaxRetries:       envOrDefaultInt("INPUT_MAX_RETRIES", 3),
 		AllowedTools:     envOrDefault("INPUT_ALLOWED_TOOLS", "Read,Write,Edit,Grep,Glob,Bash(git add:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(go build:*),Bash(go test:*),Bash(go vet:*),Bash(make:*)"),
 		CreatePR:         createPR,

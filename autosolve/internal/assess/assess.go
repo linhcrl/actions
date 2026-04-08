@@ -36,7 +36,7 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 		OutputFile:   outputFile,
 		ContextVars:  cfg.ContextVars,
 	})
-	action.LogResult(&tracker, result, "assess", outputFile)
+	action.LogResult(&tracker, result, "assess", outputFile, cfg.VerboseLogging)
 	if saveErr := tracker.Save(); saveErr != nil {
 		action.LogWarning(fmt.Sprintf("failed to save usage summary: %v", saveErr))
 	}

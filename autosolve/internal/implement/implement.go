@@ -85,7 +85,7 @@ func Run(
 		description := fmt.Sprintf("implement (attempt %d)", attempt)
 		var err error
 		result, err = runner.Run(ctx, opts)
-		action.LogResult(&tracker, result, description, outputFile)
+		action.LogResult(&tracker, result, description, outputFile, cfg.VerboseLogging)
 		if err != nil {
 			action.LogWarning(fmt.Sprintf("Claude failed on attempt %d: %v", attempt, err))
 			continue
@@ -467,7 +467,9 @@ You MUST review all staged changes before producing your result.
 SECURITY_REVIEW - SUCCESS (if no sensitive content found)
 SECURITY_REVIEW - FAILED (if any sensitive content found)
 
-If you find sensitive content, list each finding before the FAILED marker.`
+If you find sensitive content, describe each finding by file and line number
+before the FAILED marker. NEVER include the actual secret values in your
+response — your output is logged.`
 
 // aiSecurityReview runs a Claude invocation to scan the staged diff for
 // sensitive content that pattern matching might miss. Claude uses tools
@@ -500,7 +502,8 @@ func aiSecurityReview(
 		Prompt:       securityReviewPrompt,
 		OutputFile:   outputFile,
 	})
-	action.LogResult(tracker, result, "security review", outputFile)
+	// Record usage but skip logging full artifact due to secret logging risk.
+	tracker.Record("security review", result.Usage)
 	if err != nil {
 		// Best-effort unstage; safe to continue because the return
 		// below stops execution before any push can occur.
