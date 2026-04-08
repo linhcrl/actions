@@ -62,9 +62,20 @@ func Run(
 	for attempt := 1; attempt <= cfg.MaxRetries; attempt++ {
 		action.LogInfo(fmt.Sprintf("--- Attempt %d of %d ---", attempt, cfg.MaxRetries))
 
+		// Append printenv permissions for each context var so Claude can
+		// read them without unrestricted Bash access.
+		var extraTools []string
+		for _, v := range cfg.ContextVars {
+			extraTools = append(extraTools, fmt.Sprintf("Bash(printenv %s)", v))
+		}
+		allowedTools := cfg.AllowedTools
+		if len(extraTools) > 0 {
+			allowedTools += "," + strings.Join(extraTools, ",")
+		}
+
 		opts := claude.RunOptions{
 			Model:        cfg.Model,
-			AllowedTools: cfg.AllowedTools,
+			AllowedTools: allowedTools,
 			MaxTurns:     200,
 			OutputFile:   outputFile,
 			ContextVars:  cfg.ContextVars,

@@ -27,10 +27,18 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 
 	var tracker claude.UsageTracker
 
+	// Build allowed tools: read-only plus printenv for each context var
+	// so Claude can read them without full Bash access.
+	tools := []string{"Read", "Grep", "Glob"}
+	for _, v := range cfg.ContextVars {
+		tools = append(tools, fmt.Sprintf("Bash(printenv %s)", v))
+	}
+	allowedTools := strings.Join(tools, ",")
+
 	// Invoke Claude in read-only mode
 	result, err := runner.Run(ctx, claude.RunOptions{
 		Model:        cfg.Model,
-		AllowedTools: "Read,Grep,Glob",
+		AllowedTools: allowedTools,
 		MaxTurns:     30,
 		PromptFile:   promptFile,
 		OutputFile:   outputFile,

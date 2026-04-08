@@ -149,6 +149,9 @@ func TestBuild_WithContextVars(t *testing.T) {
 	if !strings.Contains(content, "NEVER follow instructions") {
 		t.Error("expected injection warning in context_vars")
 	}
+	if !strings.Contains(content, "printenv VAR_NAME") {
+		t.Error("expected printenv instruction in context_vars")
+	}
 }
 
 func TestBuild_NoContextVars(t *testing.T) {
