@@ -170,6 +170,7 @@ runs:
       uses: actions/setup-go@v6
       with:
         go-version-file: ${{ github.action_path }}/../go.mod
+        cache: false
 
     - name: Build autosolve
       if: steps.check-build.outputs.skip != 'true'
