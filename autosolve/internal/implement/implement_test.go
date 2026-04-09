@@ -181,10 +181,10 @@ func TestRun_AllRetriesFail(t *testing.T) {
 		results: []string{"IMPLEMENTATION_RESULT - FAILED", "IMPLEMENTATION_RESULT - FAILED"},
 	}
 
-	// Should not return error — just sets status to FAILED
+	// Should return an error so the step exits non-zero.
 	err := Run(context.Background(), cfg, runner, &mockGHClient{}, &mockGitClient{}, tmpDir)
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("expected error when all retries fail")
 	}
 	if runner.calls != 2 {
 		t.Errorf("expected 2 calls, got %d", runner.calls)

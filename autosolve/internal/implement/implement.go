@@ -158,8 +158,8 @@ func Run(
 			for _, v := range violations {
 				action.LogWarning(v)
 			}
-			action.LogWarning("Security check failed: violations found in staged changes")
-			return writeOutputs("FAILED", "", "", resultText, &tracker)
+			_ = writeOutputs("FAILED", "", "", resultText, &tracker)
+			return fmt.Errorf("security check failed: violations found in staged changes")
 		}
 		action.LogNotice("Security check passed")
 	}
@@ -170,8 +170,10 @@ func Run(
 		var err error
 		prURL, branchName, err = pushAndPR(ctx, cfg, runner, ghClient, gitClient, tmpDir, resultText, &tracker)
 		if err != nil {
-			action.LogWarning(fmt.Sprintf("PR creation failed: %v", err))
-			return writeOutputs("FAILED", "", "", resultText, &tracker)
+			// Write outputs before returning the error so status/summary are
+			// available to subsequent workflow steps.
+			_ = writeOutputs("FAILED", "", "", resultText, &tracker)
+			return fmt.Errorf("PR creation failed: %w", err)
 		}
 	}
 
@@ -186,7 +188,13 @@ func Run(
 		}
 	}
 
-	return writeOutputs(status, prURL, branchName, resultText, &tracker)
+	if err := writeOutputs(status, prURL, branchName, resultText, &tracker); err != nil {
+		return err
+	}
+	if status != "SUCCESS" {
+		return fmt.Errorf("implementation failed")
+	}
+	return nil
 }
 
 func pushAndPR(
