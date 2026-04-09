@@ -198,16 +198,7 @@ func pushAndPR(
 	tmpDir, resultText string,
 	tracker *claude.UsageTracker,
 ) (prURL, branchName string, err error) {
-	// Default base branch
 	baseBranch := cfg.PRBaseBranch
-	if baseBranch == "" {
-		ref, err := gitClient.SymbolicRef("refs/remotes/origin/HEAD")
-		if err != nil {
-			baseBranch = "main"
-		} else {
-			baseBranch = strings.TrimPrefix(ref, "refs/remotes/origin/")
-		}
-	}
 
 	// Configure git identity
 	if err := gitClient.Config("user.name", cfg.GitUserName); err != nil {

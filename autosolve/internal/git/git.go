@@ -21,7 +21,6 @@ type Client interface {
 	Push(args ...string) error
 	Log(args ...string) (string, error)
 	ResetHead() error
-	SymbolicRef(ref string) (string, error)
 }
 
 // CLIClient implements Client by shelling out to the git binary.
@@ -81,10 +80,6 @@ func (c *CLIClient) ResetHead() error {
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-func (c *CLIClient) SymbolicRef(ref string) (string, error) {
-	return c.output("symbolic-ref", ref)
 }
 
 func (c *CLIClient) run(args ...string) error {

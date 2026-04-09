@@ -44,9 +44,9 @@ inputs:
     required: false
     default: "true"
   pr_base_branch:
-    description: Base branch for the PR. Defaults to repository default branch.
+    description: Base branch for the PR.
     required: false
-    default: ""
+    default: "main"
   pr_labels:
     description: Comma-separated labels to apply to the PR.
     required: false

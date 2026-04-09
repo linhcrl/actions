@@ -98,7 +98,6 @@ func (m *mockGitClient) Commit(message string) error            { return nil }
 func (m *mockGitClient) Push(args ...string) error              { return nil }
 func (m *mockGitClient) Log(args ...string) (string, error)     { return "", nil }
 func (m *mockGitClient) ResetHead() error                       { return nil }
-func (m *mockGitClient) SymbolicRef(ref string) (string, error) { return "", nil }
 
 func init() {
 	RetryDelay = 0 * time.Millisecond
