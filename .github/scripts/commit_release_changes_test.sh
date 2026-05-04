@@ -42,7 +42,6 @@ test_commits_specified_file() {
   setup_repo "$repo" file1.txt
 
   export FILES_TO_COMMIT="file1.txt"
-  export UNRELEASED_CHANGES="- Added new feature"
   export VERSION="1.0.0"
   bash "$SCRIPT_DIR/commit_release_changes.sh"
 
@@ -56,7 +55,6 @@ test_multiple_files_newline_separated() {
 
   export FILES_TO_COMMIT="file1.txt
 file2.txt"
-  export UNRELEASED_CHANGES="- Added feature"
   export VERSION="1.0.0"
   bash "$SCRIPT_DIR/commit_release_changes.sh"
 
@@ -71,7 +69,6 @@ test_handles_whitespace_in_list() {
   export FILES_TO_COMMIT="  file1.txt
   file2.txt
   credentials.json  "
-  export UNRELEASED_CHANGES="- Fixed bug"
   export VERSION="1.0.0"
   bash "$SCRIPT_DIR/commit_release_changes.sh"
 
@@ -84,7 +81,6 @@ test_empty_files_list_commits_only_changelog() {
   setup_repo "$repo"
 
   export FILES_TO_COMMIT=""
-  export UNRELEASED_CHANGES="- Updated docs"
   export VERSION="1.0.0"
   bash "$SCRIPT_DIR/commit_release_changes.sh"
 
@@ -99,35 +95,18 @@ test_commit_message_includes_version() {
   export FILES_TO_COMMIT="file1.txt
 file2.txt
 credentials.json"
-  export UNRELEASED_CHANGES="- New feature"
   export VERSION="2.5.3"
   bash "$SCRIPT_DIR/commit_release_changes.sh"
 
-  git log --max-count=1 --pretty=%B | check_contains "Prepare release v2.5.3"
+  git log --max-count=1 --pretty=%B | check_contains "Prepare v2.5.3 release"
 }
 expect_success "commit message includes version" test_commit_message_includes_version
-
-test_commit_body_includes_unreleased_changes() {
-  local repo="$TMPDIR_TEST/test6"
-  setup_repo "$repo"
-
-  export FILES_TO_COMMIT=""
-  export UNRELEASED_CHANGES="- Added feature A
-- Fixed bug B"
-  export VERSION="1.0.0"
-  bash "$SCRIPT_DIR/commit_release_changes.sh"
-
-  git log --max-count=1 --pretty=%B | check_contains "Added feature A"
-  git log --max-count=1 --pretty=%B | check_contains "Fixed bug B"
-}
-expect_success "commit body includes unreleased changes" test_commit_body_includes_unreleased_changes
 
 test_fails_when_leftover_untracked_files_exist() {
   local repo="$TMPDIR_TEST/test7"
   setup_repo "$repo" file1.txt .env
 
   export FILES_TO_COMMIT="file1.txt"
-  export UNRELEASED_CHANGES="- Security update"
   export VERSION="1.0.0"
   bash "$SCRIPT_DIR/commit_release_changes.sh" 2>&1
 }
@@ -141,7 +120,6 @@ test_warns_and_skips_missing_files() {
 file2.txt
 credentials.json
 missing_file.txt"
-  export UNRELEASED_CHANGES="- New feature"
 
   # Capture output to check for warning
   local output
@@ -172,7 +150,6 @@ test_fails_when_leftover_unstaged_changes_exist() {
   echo "modified" > file1.txt
 
   export FILES_TO_COMMIT=""
-  export UNRELEASED_CHANGES="- New release"
   export VERSION="1.0.0"
   bash "$SCRIPT_DIR/commit_release_changes.sh" 2>&1
 }

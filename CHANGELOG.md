@@ -8,6 +8,12 @@ Breaking changes are prefixed with "Breaking Change: ".
 
 ## [Unreleased]
 
+### Changed
+
+- `create-release-pr` reusable workflow: use a hardcoded commit message format instead
+  of including changelog entries in the commit body, and fix backtick handling in PR
+  descriptions to prevent bash command substitution errors.
+
 ## [0.4.0] - 2026-04-09
 
 ### Added

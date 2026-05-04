@@ -8,7 +8,6 @@ set -euo pipefail
 # Environment variables:
 #   VERSION            - Version being released (e.g., "1.2.3")
 #   FILES_TO_COMMIT    - Newline-separated list of files to commit (in addition to CHANGELOG.md)
-#   UNRELEASED_CHANGES - Unreleased changelog entries (used in commit body)
 
 # Save current directory (where files to commit are expected)
 WORK_DIR="$(pwd)"
@@ -65,7 +64,8 @@ if [ -n "$leftover" ]; then
   exit 1
 fi
 
-git commit -m "Prepare release v${version}" \
-  -m "$UNRELEASED_CHANGES"
+git commit -m "Prepare v${version} release" \
+  -m "" \
+  -m "Update version to ${version} in repository files."
 
 log_notice "Changes committed successfully"

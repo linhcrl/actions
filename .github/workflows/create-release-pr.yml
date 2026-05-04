@@ -128,7 +128,6 @@ jobs:
         env:
           VERSION: ${{ steps.extract-version.outputs.next_version }}
           FILES_TO_COMMIT: ${{ inputs.files_to_commit }}
-          UNRELEASED_CHANGES: ${{ steps.extract-version.outputs.unreleased_changes }}
           GIT_USER_NAME: ${{ inputs.git_user_name }}
           GIT_USER_EMAIL: ${{ inputs.git_user_email }}
         run: |
@@ -178,6 +177,9 @@ jobs:
           base_branch=$(get_base_branch "$PR_BASE_BRANCH" "${{ github.repository }}")
           log_notice "Using base branch: $base_branch"
 
+          # Use single quotes to prevent bash from interpreting backticks
+          unreleased_changes='${{ steps.extract-version.outputs.unreleased_changes }}'
+
           # Build PR body
           pr_body="## Summary
 
@@ -185,7 +187,7 @@ jobs:
 
           ### Changelog Entries
 
-          ${{ steps.extract-version.outputs.unreleased_changes }}"
+          ${unreleased_changes}"
 
           # Create pull request
           head="$FORK_OWNER:${{ steps.create-branch.outputs.branch_name }}"
