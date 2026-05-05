@@ -43,6 +43,13 @@ inputs:
     description: Whether to create a PR from the changes.
     required: false
     default: "true"
+  pr_target_repo:
+    description: >
+      Repository where the PR is created (owner/repo format).
+      Defaults to the repository running the workflow. Set this when the
+      PR should target a different repository than the one triggering the action.
+    required: false
+    default: ${{ github.repository }}
   pr_base_branch:
     description: Base branch for the PR.
     required: false
@@ -192,6 +199,7 @@ runs:
         INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         INPUT_MAX_RETRIES: ${{ inputs.max_retries }}
         INPUT_CREATE_PR: ${{ inputs.create_pr }}
+        INPUT_PR_TARGET_REPO: ${{ inputs.pr_target_repo }}
         INPUT_PR_BASE_BRANCH: ${{ inputs.pr_base_branch }}
         INPUT_PR_LABELS: ${{ inputs.pr_labels }}
         INPUT_PR_DRAFT: ${{ inputs.pr_draft }}

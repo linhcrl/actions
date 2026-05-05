@@ -358,7 +358,7 @@ func pushAndPR(
 		for _, label := range strings.Split(cfg.PRLabels, ",") {
 			label = strings.TrimSpace(label)
 			if label != "" {
-				if err := ghClient.CreateLabel(ctx, cfg.GithubRepository, label); err != nil {
+				if err := ghClient.CreateLabel(ctx, cfg.PRTargetRepo, label); err != nil {
 					return "", "", fmt.Errorf("ensuring label %q exists: %w", label, err)
 				}
 			}
@@ -367,7 +367,7 @@ func pushAndPR(
 
 	// Create PR
 	prURL, err = ghClient.CreatePR(ctx, github.PullRequestOptions{
-		Repo:   cfg.GithubRepository,
+		Repo:   cfg.PRTargetRepo,
 		Head:   fmt.Sprintf("%s:%s", cfg.ForkOwner, branchName),
 		Base:   baseBranch,
 		Title:  pullRequestTitle,

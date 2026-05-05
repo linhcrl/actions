@@ -52,6 +52,7 @@ type Config struct {
 
 	// GitHub context
 	GithubRepository string
+	PRTargetRepo     string // repo where PRs are created; defaults to GithubRepository
 }
 
 // LoadAssessConfig reads config for the assess subcommand.
@@ -121,6 +122,7 @@ func LoadImplementConfig() (*Config, error) {
 		CommitSignature:  envOrDefault("INPUT_COMMIT_SIGNATURE", defaultCommitSignature),
 
 		GithubRepository: os.Getenv("GITHUB_REPOSITORY"),
+		PRTargetRepo:     envOrDefault("INPUT_PR_TARGET_REPO", os.Getenv("GITHUB_REPOSITORY")),
 	}
 	if err := c.validateTask(); err != nil {
 		return nil, err
