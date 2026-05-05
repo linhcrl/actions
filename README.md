@@ -108,6 +108,126 @@ determine whether a major, minor, or patch version bump is needed.
 - Returns empty `bump_type` when there are no unreleased changes
 - Follows semantic versioning principles
 
+### autosolve/assess
+
+Runs Claude in read-only mode to assess whether a task is suitable for automated
+resolution. Claude evaluates the task against configurable criteria and returns a
+PROCEED or SKIP decision with reasoning.
+
+**Usage:**
+
+```yaml
+- uses: cockroachdb/actions/autosolve/assess@v0
+  with:
+    system_prompt: "Assess whether this issue can be resolved automatically."
+    context_vars: "ISSUE_TITLE,ISSUE_BODY"
+  env:
+    ISSUE_TITLE: ${{ github.event.issue.title }}
+    ISSUE_BODY: ${{ github.event.issue.body }}
+```
+
+**Inputs:**
+
+| Name                  | Default              | Description                                                                                                                                           |
+| --------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `claude_cli_version`  | `2.1.79`             | Claude CLI version to install (e.g. `2.1.79` or `latest`)                                                                                            |
+| `system_prompt`       | `""`                 | Trusted instructions for Claude describing the task to assess. Do not embed untrusted user input here — use `context_vars` instead.                   |
+| `skill`               | `""`                 | Path to a skill/prompt file relative to the repo root                                                                                                 |
+| `context_vars`        | `""`                 | Comma-separated list of environment variable names to pass through to Claude for untrusted user input (e.g., issue titles/bodies)                     |
+| `assessment_criteria` | `""`                 | Custom criteria for the assessment. Uses default criteria if not provided.                                                                            |
+| `model`               | `claude-opus-4-6`    | Claude model ID                                                                                                                                       |
+| `blocked_paths`       | `.github/workflows/` | Comma-separated path prefixes that cannot be modified. `.github/` is always blocked.                                                                 |
+| `verbose_logging`     | `false`              | Log full Claude output in collapsible groups in the step log. Logs may contain source code snippets or environment variable values.                   |
+| `working_directory`   | `.`                  | Directory to run in (relative to workspace root)                                                                                                      |
+
+**Outputs:**
+
+| Name         | Description                        |
+| ------------ | ---------------------------------- |
+| `assessment` | `PROCEED` or `SKIP`                |
+| `summary`    | Human-readable assessment reasoning |
+| `result`     | Full Claude result text             |
+
+**Features:**
+
+- Runs Claude in read-only mode (Read, Grep, Glob only) — no file modifications
+- Safely passes untrusted user input via environment variables instead of prompt injection
+- Supports custom assessment criteria or skill files
+- Designed to gate the more expensive `autosolve/implement` step
+
+### autosolve/implement
+
+Runs Claude to implement a solution, validates changes with a security review,
+pushes to a fork, and creates a pull request. Includes retry logic, blocked-path
+enforcement, sensitive file detection, and token usage tracking.
+
+**Usage:**
+
+```yaml
+- uses: cockroachdb/actions/autosolve/implement@v0
+  with:
+    system_prompt: "Fix the issue described in the environment variables."
+    context_vars: "ISSUE_TITLE,ISSUE_BODY"
+    fork_owner: my-bot
+    fork_repo: my-repo-fork
+    fork_push_token: ${{ secrets.FORK_PAT }}
+    pr_create_token: ${{ secrets.PR_PAT }}
+  env:
+    ISSUE_TITLE: ${{ github.event.issue.title }}
+    ISSUE_BODY: ${{ github.event.issue.body }}
+```
+
+**Inputs:**
+
+| Name                 | Default                          | Description                                                                                                     |
+| -------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `claude_cli_version` | `2.1.79`                         | Claude CLI version to install (e.g. `2.1.79` or `latest`)                                                      |
+| `system_prompt`      | `""`                             | Trusted instructions for Claude describing the task. Do not embed untrusted user input — use `context_vars`.    |
+| `skill`              | `""`                             | Path to a skill/prompt file relative to the repo root                                                           |
+| `context_vars`       | `""`                             | Comma-separated list of environment variable names to pass through to Claude for untrusted user input           |
+| `allowed_tools`      | `Read,Write,Edit,Grep,Glob,...`  | Claude `--allowedTools` string (defaults include git, go build/test/vet, and make)                              |
+| `model`              | `claude-opus-4-6`                | Claude model ID                                                                                                  |
+| `max_retries`        | `3`                              | Maximum implementation attempts                                                                                  |
+| `create_pr`          | `true`                           | Whether to create a PR from the changes                                                                          |
+| `pr_target_repo`     | `${{ github.repository }}`       | Repository where the PR is created (`owner/repo`). Set this when the PR should target a different repo than the one running the workflow. |
+| `pr_base_branch`     | `main`                           | Base branch for the PR                                                                                           |
+| `pr_labels`          | `autosolve`                      | Comma-separated labels to apply to the PR                                                                        |
+| `pr_draft`           | `true`                           | Whether to create the PR as a draft                                                                              |
+| `pr_title`           | `""`                             | PR title. If empty, derived from the first commit subject line.                                                  |
+| `pr_body_template`   | `""`                             | Template for the PR body. Supports `{{SUMMARY}}` and `{{BRANCH}}` placeholders.                                 |
+| `fork_owner`         | `""`                             | GitHub username or org that owns the fork                                                                        |
+| `fork_repo`          | `""`                             | Repository name of the fork                                                                                      |
+| `fork_push_token`    | `""`                             | PAT with push access to the fork                                                                                 |
+| `pr_create_token`    | `""`                             | PAT with permission to create PRs on the upstream repo                                                           |
+| `blocked_paths`      | `.github/workflows/`             | Comma-separated path prefixes that cannot be modified. `.github/` is always blocked.                             |
+| `git_user_name`      | `autosolve[bot]`                 | Git author/committer name                                                                                        |
+| `git_user_email`     | `autosolve[bot]@users.noreply.github.com` | Git author/committer email                                                                            |
+| `branch_prefix`      | `autosolve/`                     | Prefix for the branch name                                                                                       |
+| `branch_suffix`      | `""`                             | Suffix for branch name. Defaults to timestamp.                                                                   |
+| `commit_signature`   | `Co-Authored-By: Claude <noreply@anthropic.com>` | Signature line appended to commit messages                                                        |
+| `pr_footer`          | *(auto-generated attribution)*   | Footer appended to the PR body                                                                                   |
+| `verbose_logging`    | `false`                          | Log full Claude output in collapsible groups in the step log                                                     |
+| `working_directory`  | `.`                              | Directory to run in (relative to workspace root)                                                                 |
+
+**Outputs:**
+
+| Name          | Description                                  |
+| ------------- | -------------------------------------------- |
+| `status`      | `SUCCESS` or `FAILED`                        |
+| `pr_url`      | URL of the created PR                        |
+| `summary`     | Human-readable summary                       |
+| `result`      | Full Claude result text                      |
+| `branch_name` | Name of the branch pushed to the fork        |
+
+**Features:**
+
+- Retries implementation up to `max_retries` times on failure
+- Enforces blocked-path restrictions (`.github/` is always blocked)
+- Detects and rejects sensitive files (credentials, keys, `.env`)
+- Runs an AI-powered security review on all changes before committing
+- Pushes changes to a fork and creates a PR on the upstream repository
+- Tracks Claude token usage
+
 ### get-workflow-ref
 
 Resolves the git ref that a caller used to invoke a reusable workflow by parsing
