@@ -168,19 +168,22 @@ runs:
       shell: bash
       run: |
         if [ -x "$RUNNER_TEMP/autosolve" ]; then
-          echo "skip=true" >> "$GITHUB_OUTPUT"
+          echo "skip_build=true" >> "$GITHUB_OUTPUT"
           echo "autosolve binary already available, skipping Go setup and build"
+        elif command -v go >/dev/null; then
+          echo "skip_go=true" >> "$GITHUB_OUTPUT"
+          echo "Go already available ($(go version)), skipping setup-go"
         fi
 
     - name: Set up Go
-      if: steps.check-build.outputs.skip != 'true'
+      if: steps.check-build.outputs.skip_build != 'true' && steps.check-build.outputs.skip_go != 'true'
       uses: actions/setup-go@v6
       with:
         go-version-file: ${{ github.action_path }}/../go.mod
         cache: false
 
     - name: Build autosolve
-      if: steps.check-build.outputs.skip != 'true'
+      if: steps.check-build.outputs.skip_build != 'true'
       shell: bash
       run: go build -trimpath -o "$RUNNER_TEMP/autosolve" ./cmd/autosolve
       working-directory: ${{ github.action_path }}/..
