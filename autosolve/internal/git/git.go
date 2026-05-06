@@ -19,7 +19,6 @@ type Client interface {
 	Add(args ...string) error
 	Commit(message string) error
 	Push(args ...string) error
-	Log(args ...string) (string, error)
 	ResetHead() error
 }
 
@@ -69,10 +68,6 @@ func (c *CLIClient) Push(args ...string) error {
 		cmd.Env = append(os.Environ(), c.PushEnv...)
 	}
 	return cmd.Run()
-}
-
-func (c *CLIClient) Log(args ...string) (string, error) {
-	return c.output(append([]string{"log"}, args...)...)
 }
 
 func (c *CLIClient) ResetHead() error {

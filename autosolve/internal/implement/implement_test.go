@@ -96,7 +96,6 @@ func (m *mockGitClient) Checkout(args ...string) error          { return nil }
 func (m *mockGitClient) Add(args ...string) error               { return nil }
 func (m *mockGitClient) Commit(message string) error            { return nil }
 func (m *mockGitClient) Push(args ...string) error              { return nil }
-func (m *mockGitClient) Log(args ...string) (string, error)     { return "", nil }
 func (m *mockGitClient) ResetHead() error                       { return nil }
 
 func init() {

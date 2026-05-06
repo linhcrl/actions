@@ -140,13 +140,6 @@ func LoadImplementConfig() (*Config, error) {
 	return c, nil
 }
 
-// LoadSecurityConfig reads config for the security subcommand.
-func LoadSecurityConfig() (*Config, error) {
-	return &Config{
-		BlockedPaths: ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
-	}, nil
-}
-
 func (c *Config) validateTask() error {
 	if c.SystemPrompt == "" && c.Skill == "" {
 		return fmt.Errorf("at least one of 'system_prompt' or 'skill' must be provided")
