@@ -79,6 +79,7 @@ func Run(
 			MaxTurns:     200,
 			OutputFile:   outputFile,
 			ContextVars:  cfg.ContextVars,
+			LogLevel:     cfg.LogLevel,
 		}
 
 		if attempt == 1 {
@@ -94,9 +95,15 @@ func Run(
 		}
 
 		description := fmt.Sprintf("implement (attempt %d)", attempt)
+		if cfg.LogLevel != "error" {
+			action.BeginLogGroup("Claude output: " + description)
+		}
 		var err error
 		result, err = runner.Run(ctx, opts)
-		action.LogResult(&tracker, result, description, outputFile, cfg.VerboseLogging)
+		if cfg.LogLevel != "error" {
+			action.EndLogGroup()
+		}
+		claude.LogResult(&tracker, result, description, cfg.LogLevel)
 		if err != nil {
 			action.LogWarning(fmt.Sprintf("Claude failed on attempt %d: %v", attempt, err))
 			continue

@@ -119,7 +119,7 @@ func TestParseBlockedPaths(t *testing.T) {
 		want  []string
 	}{
 		{"empty defaults", "", []string{".github/"}},
-		{"caller adds extra", "secrets/, .env", []string{".github/", "secrets/", ".env"}},
+		{"caller adds extra", "secrets/, .env", []string{".github/", ".env", "secrets/"}},
 		{"caller includes required", ".github/, secrets/", []string{".github/", "secrets/"}},
 		{"caller cannot remove required", "only-this/", []string{".github/", "only-this/"}},
 	}
@@ -180,7 +180,7 @@ func clearInputEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
 		"INPUT_SYSTEM_PROMPT", "INPUT_SKILL", "INPUT_MODEL",
-		"INPUT_ASSESSMENT_CRITERIA",
+		"INPUT_ASSESSMENT_CRITERIA", "INPUT_LOG_LEVEL",
 		"INPUT_BLOCKED_PATHS", "INPUT_MAX_RETRIES", "INPUT_ALLOWED_TOOLS",
 		"INPUT_CREATE_PR", "INPUT_FORK_OWNER", "INPUT_FORK_REPO",
 		"INPUT_FORK_PUSH_TOKEN", "INPUT_PR_CREATE_TOKEN",
@@ -223,6 +223,36 @@ func TestParseCSV(t *testing.T) {
 				if got[i] != tt.want[i] {
 					t.Errorf("index %d: got %q, want %q", i, got[i], tt.want[i])
 				}
+			}
+		})
+	}
+}
+
+func TestParseLogLevel(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"empty defaults to error", "", "error", false},
+		{"error", "error", "error", false},
+		{"info", "info", "info", false},
+		{"debug", "debug", "debug", false},
+		{"uppercase", "INFO", "info", false},
+		{"mixed case", "Debug", "debug", false},
+		{"with whitespace", " info ", "info", false},
+		{"invalid value", "verbose", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseLogLevel(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseLogLevel(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("parseLogLevel(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

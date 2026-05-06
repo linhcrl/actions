@@ -3,13 +3,18 @@
 package claude
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/cockroachdb/actions/autosolve/internal/action"
 )
 
 // Runner invokes the Claude CLI.
@@ -28,6 +33,7 @@ type RunOptions struct {
 	RetryPrompt  string   // prompt text for retry attempts (used as stdin with --resume)
 	OutputFile   string   // path to write JSON output
 	ContextVars  []string // env var names to pass through to the Claude subprocess
+	LogLevel     string   // "error", "info", or "debug" — controls real-time streaming to stderr
 }
 
 // BaselineEnvVars are environment variables always passed to the Claude CLI
@@ -60,10 +66,11 @@ var BaselineEnvVars = []string{
 
 // Result holds parsed Claude CLI output.
 type Result struct {
-	ResultText string
-	SessionID  string
-	ExitCode   int
-	Usage      Usage
+	ResultText        string
+	SessionID         string
+	ExitCode          int
+	Usage             Usage
+	PermissionDenials int
 }
 
 // Usage holds token counts and cost from a Claude CLI invocation.
@@ -170,6 +177,19 @@ func (t *UsageTracker) Save() error {
 	return os.WriteFile(UsageSummaryPath(), []byte(t.FormatSummary()), 0644)
 }
 
+// LogResult records usage for a Claude invocation and logs token counts.
+// Call immediately after runner.Run and before checking the error so that
+// usage is captured even on failure.
+func LogResult(tracker *UsageTracker, result *Result, section, logLevel string) {
+	tracker.Record(section, result.Usage)
+	action.LogInfo(fmt.Sprintf("%s usage: input=%d output=%d cost=$%.4f",
+		section, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
+	if result.PermissionDenials > 0 && logLevel != "error" {
+		action.LogWarning(fmt.Sprintf("%s: %d tool call(s) were denied by permission policy",
+			section, result.PermissionDenials))
+	}
+}
+
 // ParseSummary parses a markdown usage table (as produced by
 // FormatSummary) back into UsageSection entries. It skips header rows
 // and the totals row.
@@ -214,8 +234,9 @@ type CLIRunner struct{}
 func (r *CLIRunner) Run(ctx context.Context, opts RunOptions) (*Result, error) {
 	args := []string{
 		"--print",
+		"--verbose",
 		"--model", opts.Model,
-		"--output-format", "json",
+		"--output-format", "stream-json",
 		"--max-turns", fmt.Sprintf("%d", opts.MaxTurns),
 	}
 	if opts.AllowedTools != "" {
@@ -247,13 +268,24 @@ func (r *CLIRunner) Run(ctx context.Context, opts RunOptions) (*Result, error) {
 		cmd.Stdin = f
 	}
 
-	// Capture stdout to output file
+	// Capture stdout to output file, optionally teeing to a stream
+	// logger for real-time output.
 	outFile, err := os.Create(opts.OutputFile)
 	if err != nil {
 		return nil, fmt.Errorf("creating output file: %w", err)
 	}
 	defer outFile.Close()
-	cmd.Stdout = outFile
+
+	logLevel := opts.LogLevel
+	if logLevel == "" {
+		logLevel = "error"
+	}
+	if logLevel == "error" {
+		cmd.Stdout = outFile
+	} else {
+		logger := &streamLogger{level: logLevel}
+		cmd.Stdout = io.MultiWriter(outFile, logger)
+	}
 
 	var result Result
 	if err := cmd.Run(); err != nil {
@@ -301,13 +333,16 @@ func ExtractResult(outputFile, markerPrefix string) (text string, positive bool,
 	return text, false, fmt.Errorf("no valid %s marker found in output", markerPrefix)
 }
 
-// claudeOutput represents the JSON structure from claude --print --output-format json.
+// claudeOutput represents the result event from Claude CLI output.
+// In stream-json mode this is the last NDJSON line with type "result".
+// In json mode (used by test mocks) it is the entire file.
 type claudeOutput struct {
-	Type         string          `json:"type"`
-	Result       string          `json:"result"`
-	SessionID    string          `json:"session_id"`
-	TotalCostUSD float64         `json:"total_cost_usd"`
-	Usage        json.RawMessage `json:"usage"`
+	Type              string          `json:"type"`
+	Result            string          `json:"result"`
+	SessionID         string          `json:"session_id"`
+	TotalCostUSD      float64         `json:"total_cost_usd"`
+	Usage             json.RawMessage `json:"usage"`
+	PermissionDenials json.RawMessage `json:"permission_denials"`
 }
 
 type claudeUsage struct {
@@ -317,19 +352,42 @@ type claudeUsage struct {
 	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 }
 
+// parseOutput extracts the result from Claude CLI output. Handles both
+// single-JSON (test mocks) and NDJSON stream-json format by scanning
+// for the last line with type "result".
 func parseOutput(path string) (*Result, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var out claudeOutput
-	if err := json.Unmarshal(data, &out); err != nil {
-		return nil, fmt.Errorf("parsing claude output: %w", err)
+	// Find the last result event. For single-JSON files this is the
+	// only line; for NDJSON it is the final result event in the stream.
+	var resultLine []byte
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(make([]byte, 0, 1024*1024), 10*1024*1024)
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		// Quick pre-check to avoid parsing every line.
+		if bytes.Contains(line, []byte(`"result"`)) {
+			var peek struct {
+				Type string `json:"type"`
+			}
+			if json.Unmarshal(line, &peek) == nil && peek.Type == "result" {
+				resultLine = append([]byte(nil), line...)
+			}
+		}
+	}
+	if resultLine == nil {
+		return nil, fmt.Errorf("no result event found in output")
 	}
 
-	if out.Type != "result" {
-		return nil, fmt.Errorf("unexpected output type: %s", out.Type)
+	var out claudeOutput
+	if err := json.Unmarshal(resultLine, &out); err != nil {
+		return nil, fmt.Errorf("parsing result event: %w", err)
 	}
 
 	usage := Usage{CostUSD: out.TotalCostUSD}
@@ -343,10 +401,19 @@ func parseOutput(path string) (*Result, error) {
 		}
 	}
 
+	var denialCount int
+	if out.PermissionDenials != nil {
+		var denials []json.RawMessage
+		if json.Unmarshal(out.PermissionDenials, &denials) == nil {
+			denialCount = len(denials)
+		}
+	}
+
 	return &Result{
-		ResultText: out.Result,
-		SessionID:  out.SessionID,
-		Usage:      usage,
+		ResultText:        out.Result,
+		SessionID:         out.SessionID,
+		Usage:             usage,
+		PermissionDenials: denialCount,
 	}, nil
 }
 
@@ -373,6 +440,81 @@ func extractResultText(path string) (string, error) {
 		return "", fmt.Errorf("empty result text")
 	}
 	return result.ResultText, nil
+}
+
+// streamLogger is an io.Writer that parses NDJSON lines from the Claude CLI's
+// stream-json output and logs formatted events via the action package
+// for real-time visibility in GitHub Actions step logs.
+type streamLogger struct {
+	level string // "info" or "debug"
+	buf   []byte // incomplete line buffer
+}
+
+// Write buffers input and processes each complete NDJSON line.
+func (s *streamLogger) Write(p []byte) (int, error) {
+	s.buf = append(s.buf, p...)
+	for {
+		idx := bytes.IndexByte(s.buf, '\n')
+		if idx < 0 {
+			break
+		}
+		line := s.buf[:idx]
+		s.buf = s.buf[idx+1:]
+		s.processLine(line)
+	}
+	return len(p), nil
+}
+
+// contentBlock represents a single content block inside a Claude CLI
+// assistant or user message.
+type contentBlock struct {
+	Type  string          `json:"type"`
+	Name  string          `json:"name,omitempty"`
+	Text  string          `json:"text,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
+}
+
+func (s *streamLogger) processLine(line []byte) {
+	line = bytes.TrimSpace(line)
+	if len(line) == 0 {
+		return
+	}
+
+	var event struct {
+		Type    string `json:"type"`
+		Message struct {
+			Content []contentBlock `json:"content"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(line, &event); err != nil {
+		return
+	}
+
+	switch event.Type {
+	case "assistant":
+		if s.level == "debug" {
+			for _, block := range event.Message.Content {
+				switch block.Type {
+				case "tool_use":
+					action.LogInfo(fmt.Sprintf("[tool] %s", block.Name))
+					if len(block.Input) > 0 {
+						action.LogInfo(fmt.Sprintf("  %s", string(block.Input)))
+					}
+				case "text":
+					if block.Text != "" {
+						action.LogInfo(block.Text)
+					}
+				}
+			}
+		}
+	case "result":
+		var pretty bytes.Buffer
+		if json.Indent(&pretty, line, "", "  ") == nil {
+			action.LogInfo(pretty.String())
+		} else {
+			action.LogInfo(string(line))
+		}
+	}
 }
 
 // buildEnv constructs an explicit environment for the Claude CLI subprocess.

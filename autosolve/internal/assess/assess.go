@@ -36,6 +36,9 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 	allowedTools := strings.Join(tools, ",")
 
 	// Invoke Claude in read-only mode
+	if cfg.LogLevel != "error" {
+		action.BeginLogGroup("Claude output: assess")
+	}
 	result, err := runner.Run(ctx, claude.RunOptions{
 		Model:        cfg.Model,
 		AllowedTools: allowedTools,
@@ -43,8 +46,12 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 		PromptFile:   promptFile,
 		OutputFile:   outputFile,
 		ContextVars:  cfg.ContextVars,
+		LogLevel:     cfg.LogLevel,
 	})
-	action.LogResult(&tracker, result, "assess", outputFile, cfg.VerboseLogging)
+	if cfg.LogLevel != "error" {
+		action.EndLogGroup()
+	}
+	claude.LogResult(&tracker, result, "assess", cfg.LogLevel)
 	if saveErr := tracker.Save(); saveErr != nil {
 		action.LogWarning(fmt.Sprintf("failed to save usage summary: %v", saveErr))
 	}

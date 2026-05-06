@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"strings"
@@ -124,6 +125,43 @@ func TestExtractResult_FileNotFound(t *testing.T) {
 	}
 }
 
+func TestParseOutput_NDJSON(t *testing.T) {
+	dir := t.TempDir()
+	f, err := os.CreateTemp(dir, "stream_*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Simulate the CLI's stream-json format with system, assistant, and result events.
+	lines := []string{
+		`{"type":"system","subtype":"init","session_id":"sess-ndjson"}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"foo.go"}}]}}`,
+		`{"type":"user","message":{"content":[{"type":"tool_result","content":"file contents"}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"hello"}]}}`,
+		`{"type":"result","result":"hello world","session_id":"sess-ndjson","total_cost_usd":0.05,"usage":{"input_tokens":10,"output_tokens":20}}`,
+	}
+	for _, line := range lines {
+		f.WriteString(line + "\n")
+	}
+	f.Close()
+
+	result, err := parseOutput(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ResultText != "hello world" {
+		t.Errorf("ResultText = %q, want %q", result.ResultText, "hello world")
+	}
+	if result.SessionID != "sess-ndjson" {
+		t.Errorf("SessionID = %q, want %q", result.SessionID, "sess-ndjson")
+	}
+	if result.Usage.InputTokens != 10 {
+		t.Errorf("InputTokens = %d, want 10", result.Usage.InputTokens)
+	}
+	if result.Usage.OutputTokens != 20 {
+		t.Errorf("OutputTokens = %d, want 20", result.Usage.OutputTokens)
+	}
+}
+
 func TestUsageTracker_RoundTrip(t *testing.T) {
 	var tracker UsageTracker
 	tracker.Record("assess", Usage{
@@ -200,6 +238,84 @@ func TestParseSummary_Empty(t *testing.T) {
 	}
 }
 
+func TestStreamLogger_DebugShowsToolCalls(t *testing.T) {
+	logger := &streamLogger{level: "debug"}
+
+	line := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"foo.go"}}]}}`
+	out := captureStderr(t, func() { logger.processLine([]byte(line)) })
+
+	if !strings.Contains(out, "[tool] Read") {
+		t.Errorf("expected [tool] Read in debug output, got %q", out)
+	}
+	if !strings.Contains(out, "foo.go") {
+		t.Errorf("expected tool input in debug output, got %q", out)
+	}
+}
+
+func TestStreamLogger_InfoHidesToolCalls(t *testing.T) {
+	logger := &streamLogger{level: "info"}
+
+	line := `{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"foo.go"}}]}}`
+	out := captureStderr(t, func() { logger.processLine([]byte(line)) })
+
+	if out != "" {
+		t.Errorf("expected no output at info level for tool calls, got %q", out)
+	}
+}
+
+func TestStreamLogger_ResultSummaryAtInfo(t *testing.T) {
+	logger := &streamLogger{level: "info"}
+
+	line := `{"type":"result","duration_ms":120000,"num_turns":15,"total_cost_usd":1.5}`
+	out := captureStderr(t, func() { logger.processLine([]byte(line)) })
+
+	if !strings.Contains(out, `"type": "result"`) {
+		t.Errorf("expected pretty-printed result JSON, got %q", out)
+	}
+	if !strings.Contains(out, `"num_turns": 15`) {
+		t.Errorf("expected num_turns in output, got %q", out)
+	}
+	if !strings.Contains(out, `"total_cost_usd": 1.5`) {
+		t.Errorf("expected total_cost_usd in output, got %q", out)
+	}
+}
+
+func TestParseOutput_PermissionDenials(t *testing.T) {
+	dir := t.TempDir()
+	f, err := os.CreateTemp(dir, "denials_*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(`{"type":"result","result":"done","session_id":"s1","total_cost_usd":0.01,"usage":{"input_tokens":5,"output_tokens":10},"permission_denials":[{"tool_name":"Bash"},{"tool_name":"Bash"},{"tool_name":"Read"}]}` + "\n")
+	f.Close()
+
+	result, err := parseOutput(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.PermissionDenials != 3 {
+		t.Errorf("PermissionDenials = %d, want 3", result.PermissionDenials)
+	}
+}
+
+func TestParseOutput_NoDenials(t *testing.T) {
+	dir := t.TempDir()
+	f, err := os.CreateTemp(dir, "nodenials_*.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(`{"type":"result","result":"done","session_id":"s1","total_cost_usd":0.01,"usage":{"input_tokens":5,"output_tokens":10}}` + "\n")
+	f.Close()
+
+	result, err := parseOutput(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.PermissionDenials != 0 {
+		t.Errorf("PermissionDenials = %d, want 0", result.PermissionDenials)
+	}
+}
+
 func TestBuildEnv_BaselineOnly(t *testing.T) {
 	t.Setenv("PATH", "/usr/bin")
 	t.Setenv("HOME", "/home/test")
@@ -246,6 +362,24 @@ func TestBuildEnv_UnsetContextVar(t *testing.T) {
 	if _, ok := envMap["NONEXISTENT_VAR"]; ok {
 		t.Error("unset context var should not appear in env")
 	}
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = old }()
+
+	fn()
+	w.Close()
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	return buf.String()
 }
 
 func envToMap(env []string) map[string]string {

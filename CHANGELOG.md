@@ -52,7 +52,8 @@ Breaking changes are prefixed with "Breaking Change: ".
   using Claude in read-only mode.
 - `autosolve/implement` action: autonomously implement solutions, validate
   security, push to fork, and create PRs using Claude. Includes AI security
-  review, token usage tracking, and per-file batched diff analysis.
+  review, token usage tracking, per-file batched diff analysis, and structured
+  log levels (error/info/debug) with permission denial warnings.
 - `get-workflow-ref` action: resolve the ref a caller used to invoke a reusable
   workflow by parsing the caller's workflow file — no API calls or extra
   permissions needed.

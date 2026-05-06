@@ -137,7 +137,7 @@ PROCEED or SKIP decision with reasoning.
 | `assessment_criteria` | `""`                 | Custom criteria for the assessment. Uses default criteria if not provided.                                                                            |
 | `model`               | `claude-opus-4-6`    | Claude model ID                                                                                                                                       |
 | `blocked_paths`       | `.github/workflows/` | Comma-separated path prefixes that cannot be modified. `.github/` is always blocked.                                                                 |
-| `verbose_logging`     | `false`              | Log full Claude output in collapsible groups in the step log. Logs may contain source code snippets or environment variable values.                   |
+| `log_level`           | `error`              | Controls Claude output in the step log: `error` (status only), `info` (result summary, permission denial warnings), `debug` (stream everything).     |
 | `working_directory`   | `.`                  | Directory to run in (relative to workspace root)                                                                                                      |
 
 **Outputs:**
@@ -206,7 +206,7 @@ enforcement, sensitive file detection, and token usage tracking.
 | `branch_suffix`      | `""`                             | Suffix for branch name. Defaults to timestamp.                                                                   |
 | `commit_signature`   | `Co-Authored-By: Claude <noreply@anthropic.com>` | Signature line appended to commit messages                                                        |
 | `pr_footer`          | *(auto-generated attribution)*   | Footer appended to the PR body                                                                                   |
-| `verbose_logging`    | `false`                          | Log full Claude output in collapsible groups in the step log                                                     |
+| `log_level`          | `error`                          | Controls Claude output in the step log: `error` (status only), `info` (result summary, permission denial warnings), `debug` (stream everything). |
 | `working_directory`  | `.`                              | Directory to run in (relative to workspace root)                                                                 |
 
 **Outputs:**

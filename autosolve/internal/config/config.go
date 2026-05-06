@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -25,8 +26,11 @@ type Config struct {
 	BlockedPaths       []string
 	FooterType         string // "assessment" or "implementation"
 
-	// Logging
-	VerboseLogging bool // log full Claude output in step logs
+	// Logging controls how much Claude output streams to the step log.
+	//   "error" — errors and final status only (token counts, result)
+	//   "info"  — result summary (turns, duration, cost) and permission denial warnings
+	//   "debug" — all tool calls, assistant text, and tool I/O
+	LogLevel string
 
 	// Implementation-specific
 	MaxRetries   int
@@ -57,7 +61,7 @@ type Config struct {
 
 // LoadAssessConfig reads config for the assess subcommand.
 func LoadAssessConfig() (*Config, error) {
-	verboseLogging, err := envBool("INPUT_VERBOSE_LOGGING", false)
+	logLevel, err := parseLogLevel(os.Getenv("INPUT_LOG_LEVEL"))
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +73,7 @@ func LoadAssessConfig() (*Config, error) {
 		Model:              os.Getenv("INPUT_MODEL"),
 		BlockedPaths:       ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
 		FooterType:         "assessment",
-		VerboseLogging:     verboseLogging,
+		LogLevel:           logLevel,
 
 		GithubRepository: os.Getenv("GITHUB_REPOSITORY"),
 	}
@@ -89,7 +93,7 @@ func LoadImplementConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	verboseLogging, err := envBool("INPUT_VERBOSE_LOGGING", false)
+	logLevel, err := parseLogLevel(os.Getenv("INPUT_LOG_LEVEL"))
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +105,7 @@ func LoadImplementConfig() (*Config, error) {
 		Model:            os.Getenv("INPUT_MODEL"),
 		BlockedPaths:     ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
 		FooterType:       "implementation",
-		VerboseLogging:   verboseLogging,
+		LogLevel:         logLevel,
 		MaxRetries:       envOrDefaultInt("INPUT_MAX_RETRIES", 3),
 		AllowedTools:     envOrDefault("INPUT_ALLOWED_TOOLS", "Read,Write,Edit,Grep,Glob,Bash(git add:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(go build:*),Bash(go test:*),Bash(go vet:*),Bash(make:*)"),
 		CreatePR:         createPR,
@@ -212,16 +216,17 @@ func ParseBlockedPaths(raw string) []string {
 		}
 	}
 	var result []string
-	// Required paths first for consistent ordering
 	for _, p := range requiredBlockedPaths {
 		result = append(result, p)
 	}
+	var extra []string
 	for p := range paths {
 		if !contains(requiredBlockedPaths, p) {
-			result = append(result, p)
+			extra = append(extra, p)
 		}
 	}
-	return result
+	sort.Strings(extra)
+	return append(result, extra...)
 }
 
 func contains(ss []string, s string) bool {
@@ -237,6 +242,19 @@ func contains(ss []string, s string) bool {
 // security review.
 func (c *Config) SecurityReviewModel() string {
 	return "claude-sonnet-4-6"
+}
+
+func parseLogLevel(raw string) (string, error) {
+	raw = strings.ToLower(strings.TrimSpace(raw))
+	if raw == "" {
+		return "error", nil
+	}
+	switch raw {
+	case "error", "info", "debug":
+		return raw, nil
+	default:
+		return "", fmt.Errorf("invalid log_level %q (expected error, info, or debug)", raw)
+	}
 }
 
 func envBool(key string, def bool) (bool, error) {

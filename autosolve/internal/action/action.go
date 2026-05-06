@@ -3,13 +3,9 @@
 package action
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/cockroachdb/actions/autosolve/internal/claude"
 )
 
 // SetOutput writes a single-line output to $GITHUB_OUTPUT.
@@ -59,40 +55,15 @@ func TruncateOutput(maxLines int, text string) string {
 	return fmt.Sprintf("%s\n[... truncated (%d lines total, showing first %d)]", truncated, len(lines), maxLines)
 }
 
-// LogResult records usage for a Claude invocation and logs token counts.
-// When verbose is true, the full output is written to a collapsible group
-// in the step log. Call immediately after runner.Run and before checking
-// the error so that usage is captured even on failure.
-func LogResult(
-	tracker *claude.UsageTracker, result *claude.Result, section, outputFile string, verbose bool,
-) {
-	tracker.Record(section, result.Usage)
-	LogInfo(fmt.Sprintf("%s usage: input=%d output=%d cost=$%.4f",
-		section, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
-	if verbose {
-		logOutputGroup(section, outputFile)
-	}
+// BeginLogGroup opens a collapsible ::group:: in the GitHub Actions step log.
+// Content streamed to stderr between Begin and End is visible in real-time
+// but collapsed by default once complete.
+func BeginLogGroup(name string) {
+	fmt.Fprintf(os.Stderr, "::group::%s\n", name)
 }
 
-// logOutputGroup writes the contents of outputFile into a collapsible
-// ::group:: block in the GitHub Actions step log. JSON files are
-// pretty-printed for readability.
-func logOutputGroup(section, outputFile string) {
-	data, err := os.ReadFile(outputFile)
-	if err != nil {
-		LogWarning(fmt.Sprintf("failed to read output for log group: %v", err))
-		return
-	}
-	// Pretty-print JSON output for readability.
-	var pretty bytes.Buffer
-	if json.Indent(&pretty, data, "", "  ") == nil {
-		data = pretty.Bytes()
-	}
-	fmt.Fprintf(os.Stderr, "::group::Claude output: %s\n", section)
-	fmt.Fprint(os.Stderr, string(data))
-	if len(data) > 0 && data[len(data)-1] != '\n' {
-		fmt.Fprintln(os.Stderr)
-	}
+// EndLogGroup closes the current ::group:: block.
+func EndLogGroup() {
 	fmt.Fprintln(os.Stderr, "::endgroup::")
 }
 
