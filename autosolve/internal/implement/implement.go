@@ -41,6 +41,26 @@ func Run(
 	// Warn if the repo is missing recommended .gitignore patterns
 	security.CheckGitignore(action.LogWarning)
 
+	// Pre-compute branch name so we can check for conflicts before
+	// spending tokens on Claude.
+	var branchName string
+	if cfg.CreatePR {
+		suffix := cfg.BranchSuffix
+		if suffix == "" {
+			suffix = time.Now().Format("20060102-150405")
+		}
+		branchName = cfg.BranchPrefix + suffix
+
+		forkRepo := fmt.Sprintf("%s/%s", cfg.ForkOwner, cfg.ForkRepo)
+		exists, err := ghClient.BranchExists(ctx, forkRepo, branchName)
+		if err != nil {
+			return fmt.Errorf("checking branch availability: %w", err)
+		}
+		if exists {
+			return fmt.Errorf("branch %q already exists on %s — delete it or use a different branch_suffix", branchName, forkRepo)
+		}
+	}
+
 	// Build prompt
 	promptFile, err := prompt.Build(cfg, tmpDir)
 	if err != nil {
@@ -103,7 +123,7 @@ func Run(
 		if cfg.LogLevel != "error" {
 			action.EndLogGroup()
 		}
-		claude.LogResult(&tracker, result, description, cfg.LogLevel)
+		claude.LogResult(&tracker, result, description)
 		if err != nil {
 			action.LogWarning(fmt.Sprintf("Claude failed on attempt %d: %v", attempt, err))
 			continue
@@ -172,10 +192,10 @@ func Run(
 	}
 
 	// PR creation
-	var prURL, branchName string
+	var prURL string
 	if implStatus == "SUCCESS" && cfg.CreatePR {
 		var err error
-		prURL, branchName, err = pushAndPR(ctx, cfg, runner, ghClient, gitClient, tmpDir, resultText, &tracker)
+		prURL, err = pushAndPR(ctx, cfg, runner, ghClient, gitClient, tmpDir, branchName, resultText, &tracker)
 		if err != nil {
 			// Write outputs before returning the error so status/summary are
 			// available to subsequent workflow steps.
@@ -210,17 +230,17 @@ func pushAndPR(
 	runner claude.Runner,
 	ghClient github.Client,
 	gitClient git.Client,
-	tmpDir, resultText string,
+	tmpDir, branchName, resultText string,
 	tracker *claude.UsageTracker,
-) (prURL, branchName string, err error) {
+) (prURL string, err error) {
 	baseBranch := cfg.PRBaseBranch
 
 	// Configure git identity
 	if err := gitClient.Config("user.name", cfg.GitUserName); err != nil {
-		return "", "", fmt.Errorf("setting git user.name: %w", err)
+		return "", fmt.Errorf("setting git user.name: %w", err)
 	}
 	if err := gitClient.Config("user.email", cfg.GitUserEmail); err != nil {
-		return "", "", fmt.Errorf("setting git user.email: %w", err)
+		return "", fmt.Errorf("setting git user.email: %w", err)
 	}
 
 	// Set fork credentials and GIT_ASKPASS for the git push subprocess
@@ -241,7 +261,7 @@ func pushAndPR(
 	// Check if fork remote exists (exact line match to avoid matching e.g. "forked")
 	remotes, err := gitClient.Remote()
 	if err != nil {
-		return "", "", fmt.Errorf("listing git remotes: %w", err)
+		return "", fmt.Errorf("listing git remotes: %w", err)
 	}
 	hasFork := false
 	for _, line := range strings.Split(remotes, "\n") {
@@ -252,32 +272,25 @@ func pushAndPR(
 	}
 	if hasFork {
 		if _, err := gitClient.Remote("set-url", "fork", forkURL); err != nil {
-			return "", "", fmt.Errorf("updating fork remote URL: %w", err)
+			return "", fmt.Errorf("updating fork remote URL: %w", err)
 		}
 	} else {
 		if _, err := gitClient.Remote("add", "fork", forkURL); err != nil {
-			return "", "", fmt.Errorf("adding fork remote: %w", err)
+			return "", fmt.Errorf("adding fork remote: %w", err)
 		}
 	}
 
-	// Create branch
-	suffix := cfg.BranchSuffix
-	if suffix == "" {
-		suffix = time.Now().Format("20060102-150405")
-	}
-	branchName = cfg.BranchPrefix + suffix
-
 	if err := gitClient.Checkout("-b", branchName); err != nil {
-		return "", "", fmt.Errorf("creating branch: %w", err)
+		return "", fmt.Errorf("creating branch: %w", err)
 	}
 
 	// Read and remove Claude-generated metadata files
 	commitSubject, commitBody, err := readCommitMessage()
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	if err := copyPRBody(tmpDir); err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	// Stage only files that appear in the working tree diff (unstaged,
@@ -285,38 +298,38 @@ func pushAndPR(
 	// or other artifacts dropped by action steps (e.g., gha-creds-*.json).
 	changedFiles, err := git.ChangedFiles(gitClient)
 	if err != nil {
-		return "", "", fmt.Errorf("listing changed files: %w", err)
+		return "", fmt.Errorf("listing changed files: %w", err)
 	}
 	for _, f := range changedFiles {
 		if err := gitClient.Add(f); err != nil {
-			return "", "", fmt.Errorf("staging %s: %w", f, err)
+			return "", fmt.Errorf("staging %s: %w", f, err)
 		}
 	}
 
 	// Run security check on final staged changeset
 	violations, err := security.Check(gitClient, cfg.BlockedPaths)
 	if err != nil {
-		return "", "", fmt.Errorf("security check: %w", err)
+		return "", fmt.Errorf("security check: %w", err)
 	}
 	if len(violations) > 0 {
 		for _, v := range violations {
 			action.LogWarning(v)
 		}
-		return "", "", fmt.Errorf("security check failed: %d violation(s) found", len(violations))
+		return "", fmt.Errorf("security check failed: %d violation(s) found", len(violations))
 	}
 
 	// Verify there are staged changes
 	stagedFiles, err := gitClient.Diff("--cached", "--name-only")
 	if err != nil {
-		return "", "", fmt.Errorf("checking staged changes: %w", err)
+		return "", fmt.Errorf("checking staged changes: %w", err)
 	}
 	if strings.TrimSpace(stagedFiles) == "" {
-		return "", "", fmt.Errorf("no changes to commit")
+		return "", fmt.Errorf("no changes to commit")
 	}
 
 	// AI security review: have Claude scan the staged diff for sensitive content
 	if err := aiSecurityReview(ctx, cfg, runner, gitClient, tmpDir, tracker); err != nil {
-		return "", "", fmt.Errorf("AI security review failed: %w", err)
+		return "", fmt.Errorf("AI security review failed: %w", err)
 	}
 
 	// Build commit message — normalize subject to first line, trimmed
@@ -349,12 +362,12 @@ func pushAndPR(
 	commitMsg += "\n\n" + cfg.CommitSignature
 
 	if err := gitClient.Commit(commitMsg); err != nil {
-		return "", "", fmt.Errorf("committing: %w", err)
+		return "", fmt.Errorf("committing: %w", err)
 	}
 
 	// Force push to fork
 	if err := gitClient.Push("--set-upstream", "fork", branchName, "--force"); err != nil {
-		return "", "", fmt.Errorf("pushing to fork: %w", err)
+		return "", fmt.Errorf("pushing to fork: %w", err)
 	}
 
 	// Build PR body
@@ -366,7 +379,7 @@ func pushAndPR(
 			label = strings.TrimSpace(label)
 			if label != "" {
 				if err := ghClient.CreateLabel(ctx, cfg.PRTargetRepo, label); err != nil {
-					return "", "", fmt.Errorf("ensuring label %q exists: %w", label, err)
+					return "", fmt.Errorf("ensuring label %q exists: %w", label, err)
 				}
 			}
 		}
@@ -383,18 +396,18 @@ func pushAndPR(
 		Draft:  cfg.PRDraft,
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("creating PR: %w", err)
+		return "", fmt.Errorf("creating PR: %w", err)
 	}
 
 	action.LogNotice(fmt.Sprintf("PR created: %s", prURL))
 	if err := action.SetOutput("pr_url", prURL); err != nil {
-		return "", "", fmt.Errorf("setting output: %w", err)
+		return "", fmt.Errorf("setting output: %w", err)
 	}
 	if err := action.SetOutput("branch_name", branchName); err != nil {
-		return "", "", fmt.Errorf("setting output: %w", err)
+		return "", fmt.Errorf("setting output: %w", err)
 	}
 
-	return prURL, branchName, nil
+	return prURL, nil
 }
 
 func readCommitMessage() (subject, body string, err error) {

@@ -86,6 +86,10 @@ func (m *mockGHClient) CreateLabel(_ context.Context, _ string, name string) err
 	return nil
 }
 
+func (m *mockGHClient) BranchExists(_ context.Context, _, _ string) (bool, error) {
+	return false, nil
+}
+
 type mockGitClient struct{}
 
 func (m *mockGitClient) Diff(args ...string) (string, error)    { return "", nil }

@@ -180,11 +180,11 @@ func (t *UsageTracker) Save() error {
 // LogResult records usage for a Claude invocation and logs token counts.
 // Call immediately after runner.Run and before checking the error so that
 // usage is captured even on failure.
-func LogResult(tracker *UsageTracker, result *Result, section, logLevel string) {
+func LogResult(tracker *UsageTracker, result *Result, section string) {
 	tracker.Record(section, result.Usage)
 	action.LogInfo(fmt.Sprintf("%s usage: input=%d output=%d cost=$%.4f",
 		section, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
-	if result.PermissionDenials > 0 && logLevel != "error" {
+	if result.PermissionDenials > 0 {
 		action.LogWarning(fmt.Sprintf("%s: %d tool call(s) were denied by permission policy",
 			section, result.PermissionDenials))
 	}

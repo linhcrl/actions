@@ -51,7 +51,7 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 	if cfg.LogLevel != "error" {
 		action.EndLogGroup()
 	}
-	claude.LogResult(&tracker, result, "assess", cfg.LogLevel)
+	claude.LogResult(&tracker, result, "assess")
 	if saveErr := tracker.Save(); saveErr != nil {
 		action.LogWarning(fmt.Sprintf("failed to save usage summary: %v", saveErr))
 	}

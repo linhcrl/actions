@@ -53,7 +53,8 @@ Breaking changes are prefixed with "Breaking Change: ".
 - `autosolve/implement` action: autonomously implement solutions, validate
   security, push to fork, and create PRs using Claude. Includes AI security
   review, token usage tracking, per-file batched diff analysis, and structured
-  log levels (error/info/debug) with permission denial warnings.
+  log levels (error/info/debug) with permission denial warnings. Fails fast
+  if the target branch already exists on the fork.
 - `get-workflow-ref` action: resolve the ref a caller used to invoke a reusable
   workflow by parsing the caller's workflow file — no API calls or extra
   permissions needed.

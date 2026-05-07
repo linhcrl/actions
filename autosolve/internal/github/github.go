@@ -14,6 +14,7 @@ import (
 type Client interface {
 	CreatePR(ctx context.Context, opts PullRequestOptions) (string, error)
 	CreateLabel(ctx context.Context, repo string, name string) error
+	BranchExists(ctx context.Context, repo, branch string) (bool, error)
 }
 
 // PullRequestOptions configures PR creation.
@@ -69,6 +70,21 @@ func (c *GithubClient) CreateLabel(ctx context.Context, repo string, name string
 		return fmt.Errorf("creating label %q: %s", name, strings.TrimSpace(stderr.String()))
 	}
 	return nil
+}
+
+func (c *GithubClient) BranchExists(ctx context.Context, repo, branch string) (bool, error) {
+	cmd := c.command(ctx, "api", fmt.Sprintf("repos/%s/branches/%s", repo, branch),
+		"--silent")
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		if strings.Contains(stderr.String(), "Not Found") ||
+			strings.Contains(stderr.String(), "404") {
+			return false, nil
+		}
+		return false, fmt.Errorf("checking branch %q: %s", branch, strings.TrimSpace(stderr.String()))
+	}
+	return true, nil
 }
 
 func (c *GithubClient) command(ctx context.Context, args ...string) *exec.Cmd {
