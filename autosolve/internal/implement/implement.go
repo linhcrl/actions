@@ -527,7 +527,7 @@ func aiSecurityReview(
 	outputFile := filepath.Join(tmpDir, "security_review.json")
 	result, err := runner.Run(ctx, claude.RunOptions{
 		Model:        cfg.SecurityReviewModel(),
-		AllowedTools: "Bash,Read,Grep,Glob",
+		AllowedTools: "Bash(git diff:*),Bash(git show:*),Read,Grep,Glob",
 		MaxTurns:     100,
 		Prompt:       securityReviewPrompt,
 		OutputFile:   outputFile,
