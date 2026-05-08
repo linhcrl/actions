@@ -136,7 +136,7 @@ PROCEED or SKIP decision with reasoning.
 | `context_vars`        | `""`                 | Comma-separated list of environment variable names to pass through to Claude for untrusted user input (e.g., issue titles/bodies)                     |
 | `assessment_criteria` | `""`                 | Custom criteria for the assessment. Uses default criteria if not provided.                                                                            |
 | `model`               | `claude-opus-4-6`    | Claude model ID                                                                                                                                       |
-| `blocked_paths`       | `.github/workflows/` | Comma-separated path prefixes that cannot be modified. `.github/` is always blocked.                                                                 |
+| `blocked_paths`       | `""`                 | Comma-separated path prefixes that cannot be modified. `.github/` is always blocked.                                                                 |
 | `log_level`           | `error`              | Controls Claude output in the step log: `error` (status only), `info` (result summary, permission denial warnings), `debug` (stream everything).     |
 | `working_directory`   | `.`                  | Directory to run in (relative to workspace root)                                                                                                      |
 
@@ -188,18 +188,17 @@ enforcement, sensitive file detection, and token usage tracking.
 | `allowed_tools`      | `Read,Write,Edit,Grep,Glob,...`  | Claude `--allowedTools` string (defaults include git, go build/test/vet, and make)                              |
 | `model`              | `claude-opus-4-6`                | Claude model ID                                                                                                  |
 | `max_retries`        | `3`                              | Maximum implementation attempts                                                                                  |
-| `create_pr`          | `true`                           | Whether to create a PR from the changes                                                                          |
 | `pr_target_repo`     | `${{ github.repository }}`       | Repository where the PR is created (`owner/repo`). Set this when the PR should target a different repo than the one running the workflow. |
 | `pr_base_branch`     | `main`                           | Base branch for the PR                                                                                           |
 | `pr_labels`          | `autosolve`                      | Comma-separated labels to apply to the PR                                                                        |
 | `pr_draft`           | `true`                           | Whether to create the PR as a draft                                                                              |
 | `pr_title`           | `""`                             | PR title. If empty, derived from the first commit subject line.                                                  |
 | `pr_body_template`   | `""`                             | Template for the PR body. Supports `{{SUMMARY}}` and `{{BRANCH}}` placeholders.                                 |
-| `fork_owner`         | `""`                             | GitHub username or org that owns the fork                                                                        |
-| `fork_repo`          | `""`                             | Repository name of the fork                                                                                      |
-| `fork_push_token`    | `""`                             | PAT with push access to the fork                                                                                 |
-| `pr_create_token`    | `""`                             | PAT with permission to create PRs on the upstream repo                                                           |
-| `blocked_paths`      | `.github/workflows/`             | Comma-separated path prefixes that cannot be modified. `.github/` is always blocked.                             |
+| `fork_owner`         | **required**                     | GitHub username or org that owns the fork                                                                        |
+| `fork_repo`          | **required**                     | Repository name of the fork                                                                                      |
+| `fork_push_token`    | **required**                     | PAT with push access to the fork                                                                                 |
+| `pr_create_token`    | **required**                     | PAT with permission to create PRs on the upstream repo                                                           |
+| `blocked_paths`      | `""`                             | Comma-separated path prefixes that cannot be modified. `.github/` is always blocked.                             |
 | `git_user_name`      | `autosolve[bot]`                 | Git author/committer name                                                                                        |
 | `git_user_email`     | `autosolve[bot]@users.noreply.github.com` | Git author/committer email                                                                            |
 | `branch_prefix`      | `autosolve/`                     | Prefix for the branch name                                                                                       |

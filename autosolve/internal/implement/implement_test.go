@@ -55,6 +55,7 @@ func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.R
 	// Simulate Claude writing metadata files on success
 	if strings.Contains(resultText, "SUCCESS") {
 		os.WriteFile(".autosolve-commit-message", []byte("fix: mock commit"), 0644)
+		os.WriteFile(".autosolve-pr-body", []byte("Mock PR body."), 0644)
 	}
 
 	result := &claude.Result{
@@ -90,9 +91,23 @@ func (m *mockGHClient) BranchExists(_ context.Context, _, _ string) (bool, error
 	return false, nil
 }
 
-type mockGitClient struct{}
+type mockGitClient struct {
+	hasStagedChanges bool
+}
 
-func (m *mockGitClient) Diff(args ...string) (string, error)    { return "", nil }
+func (m *mockGitClient) Diff(args ...string) (string, error) {
+	if !m.hasStagedChanges {
+		return "", nil
+	}
+	joined := strings.Join(args, " ")
+	if strings.Contains(joined, "--cached") && strings.Contains(joined, "--name-only") {
+		return "src/main.go\n", nil
+	}
+	if strings.Contains(joined, "--cached") {
+		return "diff --git a/src/main.go\n", nil
+	}
+	return "", nil
+}
 func (m *mockGitClient) LsFiles(args ...string) (string, error) { return "", nil }
 func (m *mockGitClient) Config(args ...string) error            { return nil }
 func (m *mockGitClient) Remote(args ...string) (string, error)  { return "", nil }
@@ -106,9 +121,10 @@ func init() {
 	RetryDelay = 0 * time.Millisecond
 }
 
-func TestRun_SuccessNoPR(t *testing.T) {
+func TestRun_Success(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Cleanup(func() { os.Remove(".autosolve-commit-message") })
+	t.Cleanup(func() { os.Remove(".autosolve-pr-body") })
 	t.Setenv("GITHUB_OUTPUT", tmpDir+"/output")
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
@@ -119,25 +135,33 @@ func TestRun_SuccessNoPR(t *testing.T) {
 		FooterType:   "implementation",
 		MaxRetries:   3,
 		AllowedTools: "Read,Write,Edit",
-		CreatePR:     false,
+		ForkOwner:    "testorg",
+		ForkRepo:     "testrepo",
+		BranchPrefix: "autosolve/",
+		PRBaseBranch: "main",
 	}
 
 	runner := &mockRunner{
-		results: []string{"Fixed it.\n\nIMPLEMENTATION_RESULT - SUCCESS"},
+		results: []string{
+			"Fixed it.\n\nIMPLEMENTATION_RESULT - SUCCESS",
+			"No issues found.\n\nSECURITY_REVIEW - SUCCESS",
+		},
 	}
 
-	err := Run(context.Background(), cfg, runner, &mockGHClient{}, &mockGitClient{}, tmpDir)
+	err := Run(context.Background(), cfg, runner, &mockGHClient{prURL: "https://github.com/org/repo/pull/1"}, &mockGitClient{hasStagedChanges: true}, tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runner.calls != 1 {
-		t.Errorf("expected 1 call, got %d", runner.calls)
+	// 1 implement call + 1 security review call
+	if runner.calls != 2 {
+		t.Errorf("expected 2 calls, got %d", runner.calls)
 	}
 }
 
 func TestRun_RetryThenSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Cleanup(func() { os.Remove(".autosolve-commit-message") })
+	t.Cleanup(func() { os.Remove(".autosolve-pr-body") })
 	t.Setenv("GITHUB_OUTPUT", tmpDir+"/output")
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
@@ -148,20 +172,28 @@ func TestRun_RetryThenSuccess(t *testing.T) {
 		FooterType:   "implementation",
 		MaxRetries:   3,
 		AllowedTools: "Read,Write,Edit",
-		CreatePR:     false,
+		ForkOwner:    "testorg",
+		ForkRepo:     "testrepo",
+		BranchPrefix: "autosolve/",
+		PRBaseBranch: "main",
 	}
 
 	runner := &mockRunner{
-		results:    []string{"IMPLEMENTATION_RESULT - FAILED", "IMPLEMENTATION_RESULT - SUCCESS"},
+		results: []string{
+			"IMPLEMENTATION_RESULT - FAILED",
+			"IMPLEMENTATION_RESULT - SUCCESS",
+			"No issues found.\n\nSECURITY_REVIEW - SUCCESS",
+		},
 		sessionIDs: []string{"sess-1", "sess-1"},
 	}
 
-	err := Run(context.Background(), cfg, runner, &mockGHClient{}, &mockGitClient{}, tmpDir)
+	err := Run(context.Background(), cfg, runner, &mockGHClient{prURL: "https://github.com/org/repo/pull/1"}, &mockGitClient{hasStagedChanges: true}, tmpDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runner.calls != 2 {
-		t.Errorf("expected 2 calls (1 retry), got %d", runner.calls)
+	// 2 implement calls + 1 security review call
+	if runner.calls != 3 {
+		t.Errorf("expected 3 calls (1 retry + security review), got %d", runner.calls)
 	}
 }
 
@@ -177,7 +209,10 @@ func TestRun_AllRetriesFail(t *testing.T) {
 		FooterType:   "implementation",
 		MaxRetries:   2,
 		AllowedTools: "Read,Write,Edit",
-		CreatePR:     false,
+		ForkOwner:    "testorg",
+		ForkRepo:     "testrepo",
+		BranchPrefix: "autosolve/",
+		PRBaseBranch: "main",
 	}
 
 	runner := &mockRunner{

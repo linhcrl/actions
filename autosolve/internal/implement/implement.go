@@ -43,22 +43,19 @@ func Run(
 
 	// Pre-compute branch name so we can check for conflicts before
 	// spending tokens on Claude.
-	var branchName string
-	if cfg.CreatePR {
-		suffix := cfg.BranchSuffix
-		if suffix == "" {
-			suffix = time.Now().Format("20060102-150405")
-		}
-		branchName = cfg.BranchPrefix + suffix
+	suffix := cfg.BranchSuffix
+	if suffix == "" {
+		suffix = time.Now().Format("20060102-150405")
+	}
+	branchName := cfg.BranchPrefix + suffix
 
-		forkRepo := fmt.Sprintf("%s/%s", cfg.ForkOwner, cfg.ForkRepo)
-		exists, err := ghClient.BranchExists(ctx, forkRepo, branchName)
-		if err != nil {
-			return fmt.Errorf("checking branch availability: %w", err)
-		}
-		if exists {
-			return fmt.Errorf("branch %q already exists on %s — delete it or use a different branch_suffix", branchName, forkRepo)
-		}
+	forkRepo := fmt.Sprintf("%s/%s", cfg.ForkOwner, cfg.ForkRepo)
+	exists, err := ghClient.BranchExists(ctx, forkRepo, branchName)
+	if err != nil {
+		return fmt.Errorf("checking branch availability: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("branch %q already exists on %s — delete it or use a different branch_suffix", branchName, forkRepo)
 	}
 
 	// Build prompt
@@ -150,7 +147,7 @@ func Run(
 			// If no PR body template is configured, Claude must write
 			// .autosolve-pr-body. Treat a missing file as an incomplete
 			// attempt so we retry rather than falling back to a low-quality body.
-			if cfg.CreatePR && cfg.PRBodyTemplate == "" {
+			if cfg.PRBodyTemplate == "" {
 				if _, statErr := os.Stat(".autosolve-pr-body"); statErr != nil {
 					action.LogWarning(fmt.Sprintf("Attempt %d succeeded but .autosolve-pr-body was not written - retrying", attempt))
 					continue
@@ -193,7 +190,7 @@ func Run(
 
 	// PR creation
 	var prURL string
-	if implStatus == "SUCCESS" && cfg.CreatePR {
+	if implStatus == "SUCCESS" {
 		var err error
 		prURL, err = pushAndPR(ctx, cfg, runner, ghClient, gitClient, tmpDir, branchName, resultText, &tracker)
 		if err != nil {
@@ -205,14 +202,8 @@ func Run(
 	}
 
 	status := "FAILED"
-	if implStatus == "SUCCESS" {
-		if cfg.CreatePR {
-			if prURL != "" {
-				status = "SUCCESS"
-			}
-		} else {
-			status = "SUCCESS"
-		}
+	if implStatus == "SUCCESS" && prURL != "" {
+		status = "SUCCESS"
 	}
 
 	if err := writeOutputs(status, prURL, branchName, resultText, &tracker); err != nil {

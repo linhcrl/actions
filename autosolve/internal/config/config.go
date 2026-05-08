@@ -35,7 +35,6 @@ type Config struct {
 	// Implementation-specific
 	MaxRetries   int
 	AllowedTools string
-	CreatePR     bool
 
 	// PR creation
 	ForkOwner        string
@@ -85,10 +84,6 @@ func LoadAssessConfig() (*Config, error) {
 
 // LoadImplementConfig reads config for the implement subcommand.
 func LoadImplementConfig() (*Config, error) {
-	createPR, err := envBool("INPUT_CREATE_PR", true)
-	if err != nil {
-		return nil, err
-	}
 	prDraft, err := envBool("INPUT_PR_DRAFT", true)
 	if err != nil {
 		return nil, err
@@ -108,7 +103,6 @@ func LoadImplementConfig() (*Config, error) {
 		LogLevel:         logLevel,
 		MaxRetries:       envOrDefaultInt("INPUT_MAX_RETRIES", 3),
 		AllowedTools:     envOrDefault("INPUT_ALLOWED_TOOLS", "Read,Write,Edit,Grep,Glob,Bash(git add:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(go build:*),Bash(go test:*),Bash(go vet:*),Bash(make:*)"),
-		CreatePR:         createPR,
 		ForkOwner:        os.Getenv("INPUT_FORK_OWNER"),
 		ForkRepo:         os.Getenv("INPUT_FORK_REPO"),
 		ForkPushToken:    os.Getenv("INPUT_FORK_PUSH_TOKEN"),
@@ -155,9 +149,6 @@ func (c *Config) validateTask() error {
 }
 
 func (c *Config) validatePR() error {
-	if !c.CreatePR {
-		return nil
-	}
 	var missing []string
 	if c.ForkOwner == "" {
 		missing = append(missing, "fork_owner")

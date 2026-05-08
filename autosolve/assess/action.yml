@@ -40,7 +40,7 @@ inputs:
       Comma-separated path prefixes that cannot be modified.
       .github/ is always blocked and cannot be removed.
     required: false
-    default: ".github/workflows/"
+    default: ""
   log_level:
     description: >
       Controls how much Claude output streams to the step log.

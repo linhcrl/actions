@@ -46,7 +46,6 @@ func TestLoadImplementConfig_ValidatesPR(t *testing.T) {
 	clearInputEnv(t)
 	t.Setenv("INPUT_SYSTEM_PROMPT", "fix it")
 	t.Setenv("INPUT_MODEL", "claude-opus-4-6")
-	t.Setenv("INPUT_CREATE_PR", "true")
 	// Missing fork_owner, fork_repo, etc.
 	_, err := LoadImplementConfig()
 	if err == nil {
@@ -54,25 +53,15 @@ func TestLoadImplementConfig_ValidatesPR(t *testing.T) {
 	}
 }
 
-func TestLoadImplementConfig_NoPRCreation(t *testing.T) {
-	clearInputEnv(t)
-	t.Setenv("INPUT_SYSTEM_PROMPT", "fix it")
-	t.Setenv("INPUT_MODEL", "claude-opus-4-6")
-	t.Setenv("INPUT_CREATE_PR", "false")
-	cfg, err := LoadImplementConfig()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.CreatePR {
-		t.Error("expected CreatePR to be false")
-	}
-}
-
 func TestLoadImplementConfig_Defaults(t *testing.T) {
 	clearInputEnv(t)
 	t.Setenv("INPUT_SYSTEM_PROMPT", "fix it")
 	t.Setenv("INPUT_MODEL", "claude-opus-4-6")
-	t.Setenv("INPUT_CREATE_PR", "false")
+	t.Setenv("INPUT_FORK_OWNER", "testorg")
+	t.Setenv("INPUT_FORK_REPO", "testrepo")
+	t.Setenv("INPUT_FORK_PUSH_TOKEN", "fake-token")
+	t.Setenv("INPUT_PR_CREATE_TOKEN", "fake-token")
+	t.Setenv("SCRIPTS_DIR", "/tmp/scripts")
 	cfg, err := LoadImplementConfig()
 	if err != nil {
 		t.Fatal(err)
@@ -182,7 +171,7 @@ func clearInputEnv(t *testing.T) {
 		"INPUT_SYSTEM_PROMPT", "INPUT_SKILL", "INPUT_MODEL",
 		"INPUT_ASSESSMENT_CRITERIA", "INPUT_LOG_LEVEL",
 		"INPUT_BLOCKED_PATHS", "INPUT_MAX_RETRIES", "INPUT_ALLOWED_TOOLS",
-		"INPUT_CREATE_PR", "INPUT_FORK_OWNER", "INPUT_FORK_REPO",
+		"INPUT_FORK_OWNER", "INPUT_FORK_REPO",
 		"INPUT_FORK_PUSH_TOKEN", "INPUT_PR_CREATE_TOKEN",
 	} {
 		t.Setenv(key, "")

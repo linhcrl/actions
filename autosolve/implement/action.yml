@@ -39,10 +39,6 @@ inputs:
     description: Maximum implementation attempts.
     required: false
     default: "3"
-  create_pr:
-    description: Whether to create a PR from the changes.
-    required: false
-    default: "true"
   pr_target_repo:
     description: >
       Repository where the PR is created (owner/repo format).
@@ -91,7 +87,7 @@ inputs:
       Comma-separated path prefixes that cannot be modified.
       .github/ is always blocked and cannot be removed.
     required: false
-    default: ".github/workflows/"
+    default: ""
   git_user_name:
     description: Git author/committer name.
     required: false
@@ -206,7 +202,6 @@ runs:
         INPUT_MODEL: ${{ inputs.model }}
         INPUT_ALLOWED_TOOLS: ${{ inputs.allowed_tools }}
         INPUT_MAX_RETRIES: ${{ inputs.max_retries }}
-        INPUT_CREATE_PR: ${{ inputs.create_pr }}
         INPUT_PR_TARGET_REPO: ${{ inputs.pr_target_repo }}
         INPUT_PR_BASE_BRANCH: ${{ inputs.pr_base_branch }}
         INPUT_PR_LABELS: ${{ inputs.pr_labels }}
