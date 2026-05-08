@@ -79,7 +79,7 @@ runs:
         if command -v roachdev >/dev/null; then
           printf '#!/bin/sh\nexec roachdev claude -- "$@"\n' > /usr/local/bin/claude
           chmod +x /usr/local/bin/claude
-          echo "Claude CLI: using roachdev wrapper"
+          echo "Claude CLI: using roachdev wrapper ($(roachdev version))"
         else
           curl --fail --silent --show-error --location https://claude.ai/install.sh | bash -s -- "$CLAUDE_CLI_VERSION"
           echo "Claude CLI installed: $(claude --version)"
