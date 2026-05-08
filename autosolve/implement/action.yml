@@ -14,7 +14,7 @@ inputs:
     required: false
     default: ""
   skill:
-    description: Path to a skill/prompt file relative to the repo root.
+    description: Path to a skill/prompt file relative to GITHUB_WORKSPACE.
     required: false
     default: ""
   context_vars:

@@ -132,7 +132,7 @@ PROCEED or SKIP decision with reasoning.
 | --------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `claude_cli_version`  | `2.1.79`             | Claude CLI version to install (e.g. `2.1.79` or `latest`)                                                                                            |
 | `system_prompt`       | **one required**     | Trusted instructions for Claude describing the task to assess. Do not embed untrusted user input here — use `context_vars` instead. At least one of `system_prompt` or `skill` is required. |
-| `skill`               | **one required**     | Path to a skill/prompt file relative to `working_directory`. At least one of `system_prompt` or `skill` is required.                                  |
+| `skill`               | **one required**     | Path to a skill/prompt file relative to `GITHUB_WORKSPACE`. At least one of `system_prompt` or `skill` is required.                                  |
 | `context_vars`        | `""`                 | Comma-separated list of environment variable names to pass through to Claude for untrusted user input (e.g., issue titles/bodies)                     |
 | `assessment_criteria` | `""`                 | Custom criteria for the assessment. Uses default criteria if not provided.                                                                            |
 | `model`               | `claude-opus-4-6`    | Claude model ID                                                                                                                                       |
@@ -183,7 +183,7 @@ enforcement, sensitive file detection, and token usage tracking.
 | -------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `claude_cli_version` | `2.1.79`                         | Claude CLI version to install (e.g. `2.1.79` or `latest`)                                                      |
 | `system_prompt`      | **one required**                 | Trusted instructions for Claude describing the task. Do not embed untrusted user input — use `context_vars`. At least one of `system_prompt` or `skill` is required. |
-| `skill`              | **one required**                 | Path to a skill/prompt file relative to `working_directory`. At least one of `system_prompt` or `skill` is required. |
+| `skill`              | **one required**                 | Path to a skill/prompt file relative to `GITHUB_WORKSPACE`. At least one of `system_prompt` or `skill` is required. |
 | `context_vars`       | `""`                             | Comma-separated list of environment variable names to pass through to Claude for untrusted user input           |
 | `allowed_tools`      | `Read,Write,Edit,Grep,Glob,...`  | Claude `--allowedTools` string (defaults include git, go build/test/vet, and make)                              |
 | `model`              | `claude-opus-4-6`                | Claude model ID                                                                                                  |

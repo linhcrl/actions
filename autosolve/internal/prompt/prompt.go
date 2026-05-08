@@ -6,6 +6,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/cockroachdb/actions/autosolve/internal/config"
@@ -46,9 +47,13 @@ func Build(cfg *config.Config, tmpDir string) (string, error) {
 		b.WriteString("\n")
 	}
 	if cfg.Skill != "" {
-		content, err := os.ReadFile(cfg.Skill)
+		skillPath := cfg.Skill
+		if !filepath.IsAbs(skillPath) {
+			skillPath = filepath.Join(os.Getenv("GITHUB_WORKSPACE"), skillPath)
+		}
+		content, err := os.ReadFile(skillPath)
 		if err != nil {
-			return "", fmt.Errorf("reading skill file %s: %w", cfg.Skill, err)
+			return "", fmt.Errorf("reading skill file %s: %w", skillPath, err)
 		}
 		b.Write(content)
 		b.WriteString("\n")
