@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/cockroachdb/actions/autosolve/internal/claude"
@@ -67,11 +68,10 @@ func TestRun_Proceed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Check outputs were written
-	data, _ := os.ReadFile(tmpDir + "/output")
-	content := string(data)
-	if content == "" {
-		t.Error("expected output to be written")
+	outputs, _ := os.ReadFile(tmpDir + "/output")
+	outputsString := string(outputs)
+	if !strings.Contains(outputsString, "assessment=PROCEED") {
+		t.Errorf("expected assessment=PROCEED in output, got: %q", outputsString)
 	}
 }
 
@@ -94,6 +94,12 @@ func TestRun_Skip(t *testing.T) {
 	err := Run(context.Background(), cfg, runner, tmpDir)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	outputs, _ := os.ReadFile(tmpDir + "/output")
+	outputsString := string(outputs)
+	if !strings.Contains(outputsString, "assessment=SKIP") {
+		t.Errorf("expected assessment=SKIP in output, got: %q", outputsString)
 	}
 }
 

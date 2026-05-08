@@ -231,6 +231,23 @@ func TestUsageTracker_LoadSave(t *testing.T) {
 	}
 }
 
+func TestUsageTracker_DuplicateRecord(t *testing.T) {
+	var tracker UsageTracker
+	tracker.Record("implement", Usage{InputTokens: 100, OutputTokens: 200, CostUSD: 0.50})
+	tracker.Record("implement", Usage{InputTokens: 300, OutputTokens: 400, CostUSD: 0.75})
+
+	if len(tracker.Sections) != 1 {
+		t.Fatalf("expected 1 section, got %d", len(tracker.Sections))
+	}
+	got := tracker.Sections[0].Usage
+	if got.InputTokens != 400 || got.OutputTokens != 600 {
+		t.Errorf("expected accumulated tokens (400/600), got (%d/%d)", got.InputTokens, got.OutputTokens)
+	}
+	if got.CostUSD != 1.25 {
+		t.Errorf("expected accumulated cost 1.25, got %.2f", got.CostUSD)
+	}
+}
+
 func TestParseSummary_Empty(t *testing.T) {
 	sections := ParseSummary("")
 	if len(sections) != 0 {

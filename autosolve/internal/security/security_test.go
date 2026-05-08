@@ -65,6 +65,27 @@ func TestCheck_BlockedChange(t *testing.T) {
 	}
 }
 
+func TestCheck_BlockedPathIsCaseSensitive(t *testing.T) {
+	dir := setupGitRepo(t)
+	chdir(t, dir)
+
+	// Create a file with different casing than the blocked path
+	if err := os.MkdirAll(".GitHub/workflows", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(".GitHub/workflows/ci.yml", []byte("name: ci"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(violations) > 0 {
+		t.Errorf("expected no violations for differently-cased path, got: %v", violations)
+	}
+}
+
 func TestCheck_MultipleBlockedPaths(t *testing.T) {
 	dir := setupGitRepo(t)
 	chdir(t, dir)
