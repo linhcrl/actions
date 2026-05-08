@@ -19,12 +19,7 @@ import (
 	"github.com/cockroachdb/actions/autosolve/internal/security"
 )
 
-const (
-	retryPrompt = "The previous attempt did not succeed. Please review what went wrong, try a different approach if needed, and attempt the fix again. Remember to end your response with IMPLEMENTATION_RESULT - SUCCESS or IMPLEMENTATION_RESULT - FAILED."
-
-	// maxCommitSubjectLen is the maximum length for a git commit subject line.
-	maxCommitSubjectLen = 72
-)
+const retryPrompt = "The previous attempt did not succeed. Please review what went wrong, try a different approach if needed, and attempt the fix again. Remember to end your response with IMPLEMENTATION_RESULT - SUCCESS or IMPLEMENTATION_RESULT - FAILED."
 
 // RetryDelay is the pause between retry attempts. Exported for testing.
 var RetryDelay = 10 * time.Second
@@ -188,16 +183,34 @@ func Run(
 		action.LogNotice("Security check passed")
 	}
 
-	// PR creation
+	// Stage, validate, and submit
 	var prURL string
 	if implStatus == "SUCCESS" {
-		var err error
-		prURL, err = pushAndPR(ctx, cfg, runner, ghClient, gitClient, tmpDir, branchName, resultText, &tracker)
-		if err != nil {
+		if err := setupForkRemote(cfg, gitClient, branchName); err != nil {
 			// Write outputs before returning the error so status/summary are
 			// available to subsequent workflow steps.
 			_ = writeOutputs("FAILED", "", "", resultText, &tracker)
 			return fmt.Errorf("PR creation failed: %w", err)
+		}
+		commitSubject, commitBody, err := stageChanges(gitClient, tmpDir)
+		if err != nil {
+			_ = writeOutputs("FAILED", "", "", resultText, &tracker)
+			return fmt.Errorf("PR creation failed: %w", err)
+		}
+		if err := validateChanges(ctx, cfg, runner, gitClient, tmpDir, &tracker); err != nil {
+			_ = writeOutputs("FAILED", "", "", resultText, &tracker)
+			return fmt.Errorf("PR creation failed: %w", err)
+		}
+		title, err := commitAndPush(cfg, gitClient, branchName, commitSubject, commitBody)
+		if err != nil {
+			_ = writeOutputs("FAILED", "", "", resultText, &tracker)
+			return fmt.Errorf("PR creation failed: %w", err)
+		}
+		var prErr error
+		prURL, prErr = createPR(ctx, cfg, ghClient, tmpDir, branchName, resultText, title)
+		if prErr != nil {
+			_ = writeOutputs("FAILED", "", "", resultText, &tracker)
+			return fmt.Errorf("PR creation failed: %w", prErr)
 		}
 	}
 
@@ -215,23 +228,12 @@ func Run(
 	return nil
 }
 
-func pushAndPR(
-	ctx context.Context,
-	cfg *config.Config,
-	runner claude.Runner,
-	ghClient github.Client,
-	gitClient git.Client,
-	tmpDir, branchName, resultText string,
-	tracker *claude.UsageTracker,
-) (prURL string, err error) {
-	baseBranch := cfg.PRBaseBranch
-
-	// Configure git identity
+func setupForkRemote(cfg *config.Config, gitClient git.Client, branchName string) error {
 	if err := gitClient.Config("user.name", cfg.GitUserName); err != nil {
-		return "", fmt.Errorf("setting git user.name: %w", err)
+		return fmt.Errorf("setting git user.name: %w", err)
 	}
 	if err := gitClient.Config("user.email", cfg.GitUserEmail); err != nil {
-		return "", fmt.Errorf("setting git user.email: %w", err)
+		return fmt.Errorf("setting git user.email: %w", err)
 	}
 
 	// Set fork credentials and GIT_ASKPASS for the git push subprocess
@@ -249,10 +251,9 @@ func pushAndPR(
 
 	forkURL := fmt.Sprintf("https://github.com/%s/%s.git", cfg.ForkOwner, cfg.ForkRepo)
 
-	// Check if fork remote exists (exact line match to avoid matching e.g. "forked")
 	remotes, err := gitClient.Remote()
 	if err != nil {
-		return "", fmt.Errorf("listing git remotes: %w", err)
+		return fmt.Errorf("listing git remotes: %w", err)
 	}
 	hasFork := false
 	for _, line := range strings.Split(remotes, "\n") {
@@ -263,90 +264,92 @@ func pushAndPR(
 	}
 	if hasFork {
 		if _, err := gitClient.Remote("set-url", "fork", forkURL); err != nil {
-			return "", fmt.Errorf("updating fork remote URL: %w", err)
+			return fmt.Errorf("updating fork remote URL: %w", err)
 		}
 	} else {
 		if _, err := gitClient.Remote("add", "fork", forkURL); err != nil {
-			return "", fmt.Errorf("adding fork remote: %w", err)
+			return fmt.Errorf("adding fork remote: %w", err)
 		}
 	}
 
 	if err := gitClient.Checkout("-b", branchName); err != nil {
-		return "", fmt.Errorf("creating branch: %w", err)
+		return fmt.Errorf("creating branch: %w", err)
 	}
+	return nil
+}
 
-	// Read and remove Claude-generated metadata files
-	commitSubject, commitBody, err := readCommitMessage()
+func stageChanges(
+	gitClient git.Client, tmpDir string,
+) (commitSubject, commitBody string, err error) {
+	commitSubject, commitBody, err = readCommitMessage()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if err := copyPRBody(tmpDir); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	// Stage only files that appear in the working tree diff (unstaged,
-	// staged, and untracked). This avoids blindly staging credential files
-	// or other artifacts dropped by action steps (e.g., gha-creds-*.json).
+	// Stage only files that appear in the working tree diff (unstaged, staged,
+	// and untracked). This avoids blindly staging credential files or other
+	// artifacts dropped by action steps (e.g., gha-creds-*.json).
 	changedFiles, err := git.ChangedFiles(gitClient)
 	if err != nil {
-		return "", fmt.Errorf("listing changed files: %w", err)
+		return "", "", fmt.Errorf("listing changed files: %w", err)
 	}
 	for _, f := range changedFiles {
 		if err := gitClient.Add(f); err != nil {
-			return "", fmt.Errorf("staging %s: %w", f, err)
+			return "", "", fmt.Errorf("staging %s: %w", f, err)
 		}
 	}
+	return commitSubject, commitBody, nil
+}
 
+func validateChanges(
+	ctx context.Context,
+	cfg *config.Config,
+	runner claude.Runner,
+	gitClient git.Client,
+	tmpDir string,
+	tracker *claude.UsageTracker,
+) error {
 	// Run security check on final staged changeset
 	violations, err := security.Check(gitClient, cfg.BlockedPaths)
 	if err != nil {
-		return "", fmt.Errorf("security check: %w", err)
+		return fmt.Errorf("security check: %w", err)
 	}
 	if len(violations) > 0 {
 		for _, v := range violations {
 			action.LogWarning(v)
 		}
-		return "", fmt.Errorf("security check failed: %d violation(s) found", len(violations))
+		return fmt.Errorf("security check failed: %d violation(s) found", len(violations))
 	}
 
-	// Verify there are staged changes
 	stagedFiles, err := gitClient.Diff("--cached", "--name-only")
 	if err != nil {
-		return "", fmt.Errorf("checking staged changes: %w", err)
+		return fmt.Errorf("checking staged changes: %w", err)
 	}
 	if strings.TrimSpace(stagedFiles) == "" {
-		return "", fmt.Errorf("no changes to commit")
+		return fmt.Errorf("no changes to commit")
 	}
 
-	// AI security review: have Claude scan the staged diff for sensitive content
 	if err := aiSecurityReview(ctx, cfg, runner, gitClient, tmpDir, tracker); err != nil {
-		return "", fmt.Errorf("AI security review failed: %w", err)
+		return fmt.Errorf("AI security review failed: %w", err)
+	}
+	return nil
+}
+
+func commitAndPush(
+	cfg *config.Config, gitClient git.Client, branchName, commitSubject, commitBody string,
+) (title string, err error) {
+	title = cfg.PullRequestTitle
+	if title == "" {
+		title = commitSubject
+	}
+	if title == "" {
+		return "", fmt.Errorf("no PR title available: set pr_title or ensure Claude writes .autosolve-commit-message")
 	}
 
-	// Build commit message — normalize subject to first line, trimmed
-	pullRequestTitle := cfg.PullRequestTitle
-	if pullRequestTitle == "" && commitSubject != "" {
-		pullRequestTitle = commitSubject
-	}
-	if pullRequestTitle == "" {
-		p := cfg.SystemPrompt
-		if p == "" {
-			p = "automated change"
-		}
-		// Take only the first line
-		if idx := strings.IndexAny(p, "\n\r"); idx >= 0 {
-			p = p[:idx]
-		}
-		p = strings.TrimSpace(p)
-		prefix := "autosolve: "
-		maxLen := maxCommitSubjectLen - len(prefix)
-		if len(p) > maxLen {
-			p = p[:maxLen]
-		}
-		pullRequestTitle = prefix + p
-	}
-
-	commitMsg := pullRequestTitle
+	commitMsg := title
 	if commitBody != "" {
 		commitMsg += "\n\n" + commitBody
 	}
@@ -356,17 +359,22 @@ func pushAndPR(
 		return "", fmt.Errorf("committing: %w", err)
 	}
 
-	// Force push to fork
 	if err := gitClient.Push("--set-upstream", "fork", branchName, "--force"); err != nil {
 		return "", fmt.Errorf("pushing to fork: %w", err)
 	}
+	return title, nil
+}
 
-	// Build PR body
+func createPR(
+	ctx context.Context,
+	cfg *config.Config,
+	ghClient github.Client,
+	tmpDir, branchName, resultText, title string,
+) (string, error) {
 	prBody := buildPRBody(cfg, tmpDir, branchName, resultText)
 
-	// Best-effort label creation: if the token lacks permission (e.g. SSO
-	// enforcement), warn and continue — the PR is still created, just
-	// without the label.
+	// Best-effort label creation: if the token lacks permission, warn and
+	// continue — the PR is still created, just without the label.
 	if cfg.PRLabels != "" {
 		for _, label := range strings.Split(cfg.PRLabels, ",") {
 			label = strings.TrimSpace(label)
@@ -378,12 +386,11 @@ func pushAndPR(
 		}
 	}
 
-	// Create PR
-	prURL, err = ghClient.CreatePR(ctx, github.PullRequestOptions{
+	prURL, err := ghClient.CreatePR(ctx, github.PullRequestOptions{
 		Repo:   cfg.PRTargetRepo,
 		Head:   fmt.Sprintf("%s:%s", cfg.ForkOwner, branchName),
-		Base:   baseBranch,
-		Title:  pullRequestTitle,
+		Base:   cfg.PRBaseBranch,
+		Title:  title,
 		Body:   prBody,
 		Labels: cfg.PRLabels,
 		Draft:  cfg.PRDraft,
@@ -399,7 +406,6 @@ func pushAndPR(
 	if err := action.SetOutput("branch_name", branchName); err != nil {
 		return "", fmt.Errorf("setting output: %w", err)
 	}
-
 	return prURL, nil
 }
 
