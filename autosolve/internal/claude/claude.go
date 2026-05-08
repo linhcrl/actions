@@ -181,6 +181,10 @@ func (t *UsageTracker) Save() error {
 // Call immediately after runner.Run and before checking the error so that
 // usage is captured even on failure.
 func LogResult(tracker *UsageTracker, result *Result, section string) {
+	if result == nil {
+		action.LogWarning(fmt.Sprintf("%s: no result returned", section))
+		return
+	}
 	tracker.Record(section, result.Usage)
 	action.LogInfo(fmt.Sprintf("%s usage: input=%d output=%d cost=$%.4f",
 		section, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.CostUSD))
@@ -393,20 +397,22 @@ func parseOutput(path string) (*Result, error) {
 	usage := Usage{CostUSD: out.TotalCostUSD}
 	if out.Usage != nil {
 		var u claudeUsage
-		if err := json.Unmarshal(out.Usage, &u); err == nil {
-			usage.InputTokens = u.InputTokens
-			usage.OutputTokens = u.OutputTokens
-			usage.CacheCreationInputTokens = u.CacheCreationInputTokens
-			usage.CacheReadInputTokens = u.CacheReadInputTokens
+		if err := json.Unmarshal(out.Usage, &u); err != nil {
+			return nil, fmt.Errorf("parsing usage data: %w", err)
 		}
+		usage.InputTokens = u.InputTokens
+		usage.OutputTokens = u.OutputTokens
+		usage.CacheCreationInputTokens = u.CacheCreationInputTokens
+		usage.CacheReadInputTokens = u.CacheReadInputTokens
 	}
 
 	var denialCount int
 	if out.PermissionDenials != nil {
 		var denials []json.RawMessage
-		if json.Unmarshal(out.PermissionDenials, &denials) == nil {
-			denialCount = len(denials)
+		if err := json.Unmarshal(out.PermissionDenials, &denials); err != nil {
+			return nil, fmt.Errorf("parsing permission denials: %w", err)
 		}
+		denialCount = len(denials)
 	}
 
 	return &Result{

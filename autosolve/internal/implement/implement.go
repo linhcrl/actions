@@ -532,8 +532,6 @@ func aiSecurityReview(
 		Prompt:       securityReviewPrompt,
 		OutputFile:   outputFile,
 	})
-	// Record usage but skip logging full artifact due to secret logging risk.
-	tracker.Record("security review", result.Usage)
 	if err != nil {
 		// Best-effort unstage; safe to continue because the return
 		// below stops execution before any push can occur.
@@ -542,6 +540,7 @@ func aiSecurityReview(
 		}
 		return fmt.Errorf("AI security review: %w", err)
 	}
+	tracker.Record("security review", result.Usage)
 
 	resultText, positive, err := claude.ExtractResult(outputFile, "SECURITY_REVIEW")
 	if err != nil {
