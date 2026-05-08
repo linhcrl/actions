@@ -196,8 +196,8 @@ enforcement, sensitive file detection, and token usage tracking.
 | `pr_body_template`   | `""`                             | Template for the PR body. Supports `{{SUMMARY}}` and `{{BRANCH}}` placeholders.                                 |
 | `fork_owner`         | **required**                     | GitHub username or org that owns the fork                                                                        |
 | `fork_repo`          | **required**                     | Repository name of the fork                                                                                      |
-| `fork_push_token`    | **required**                     | PAT with push access to the fork                                                                                 |
-| `pr_create_token`    | **required**                     | PAT with permission to create PRs on the upstream repo                                                           |
+| `fork_push_token`    | **required**                     | PAT with `contents: write` on the fork repository                                                                |
+| `pr_create_token`    | **required**                     | PAT with `pull_requests: write` on the target repo (see [Token permissions](#token-permissions))                 |
 | `blocked_paths`      | `""`                             | Comma-separated path prefixes that cannot be modified (case-sensitive). `.github/` is always blocked.                             |
 | `git_user_name`      | `autosolve[bot]`                 | Git author/committer name                                                                                        |
 | `git_user_email`     | `autosolve[bot]@users.noreply.github.com` | Git author/committer email                                                                            |
@@ -235,6 +235,23 @@ enforcement, sensitive file detection, and token usage tracking.
 - Runs an AI-powered security review on all changes before committing
 - Pushes changes to a fork and creates a PR on the upstream repository
 - Tracks Claude token usage
+
+<a id="token-permissions"></a>
+**Token permissions:**
+
+| Token              | Required scopes                                                  |
+| ------------------ | ---------------------------------------------------------------- |
+| `fork_push_token`  | `contents: write` on the fork repository                         |
+| `pr_create_token`  | `pull_requests: write` on the target repository                  |
+
+Label auto-creation (`pr_labels`) requires `issues: write` on the target repo.
+If the token lacks this permission, the action logs a warning and continues —
+the PR is still created, just without labels. Pre-create labels manually to
+avoid the warning.
+
+For organizations using SAML/SSO, the PAT must be authorized for the
+organization that owns the target repository. See
+[GitHub docs on SSO authorization](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-saml-single-sign-on/authorizing-a-personal-access-token-for-use-with-saml-single-sign-on).
 
 ### get-workflow-ref
 

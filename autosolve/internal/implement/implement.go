@@ -364,13 +364,15 @@ func pushAndPR(
 	// Build PR body
 	prBody := buildPRBody(cfg, tmpDir, branchName, resultText)
 
-	// Ensure labels exist
+	// Best-effort label creation: if the token lacks permission (e.g. SSO
+	// enforcement), warn and continue — the PR is still created, just
+	// without the label.
 	if cfg.PRLabels != "" {
 		for _, label := range strings.Split(cfg.PRLabels, ",") {
 			label = strings.TrimSpace(label)
 			if label != "" {
 				if err := ghClient.CreateLabel(ctx, cfg.PRTargetRepo, label); err != nil {
-					return "", fmt.Errorf("ensuring label %q exists: %w", label, err)
+					action.LogWarning(fmt.Sprintf("failed creating label %q: %v", label, err))
 				}
 			}
 		}
