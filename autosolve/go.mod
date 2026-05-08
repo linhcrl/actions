@@ -1,3 +1,3 @@
 module github.com/cockroachdb/actions/autosolve
 
-go 1.23.8
+go 1.26
