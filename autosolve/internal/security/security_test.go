@@ -14,7 +14,7 @@ func TestCheck_NoChanges(t *testing.T) {
 	dir := setupGitRepo(t)
 	chdir(t, dir)
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestCheck_AllowedChange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestCheck_BlockedChange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestCheck_BlockedPathIsCaseSensitive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestCheck_StagedBlockedChange(t *testing.T) {
 		t.Fatalf("git add failed: %v\n%s", err, out)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +137,7 @@ func TestCheck_SensitiveCredentialFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestCheck_SensitiveKeyFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestCheck_SensitiveEnvFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestCheck_SymlinkToBlockedPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestCheck_SymlinkEscapesRepoRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +302,7 @@ func TestCheck_SymlinkEscapesRepoRoot_Relative(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -336,7 +336,7 @@ func TestCheck_DeletedFileNoFalseViolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	violations, err := Check(&git.CLIClient{}, []string{".github/"})
 	if err != nil {
 		t.Fatal(err)
 	}

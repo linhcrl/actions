@@ -139,7 +139,6 @@ func TestRun_Success(t *testing.T) {
 	cfg := &config.Config{
 		SystemPrompt: "Fix the bug",
 		Model:        "sonnet",
-		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "implementation",
 		MaxRetries:   3,
 		AllowedTools: "Read,Write,Edit",
@@ -175,7 +174,6 @@ func TestRun_RetryThenSuccess(t *testing.T) {
 	cfg := &config.Config{
 		SystemPrompt: "Fix the bug",
 		Model:        "sonnet",
-		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "implementation",
 		MaxRetries:   3,
 		AllowedTools: "Read,Write,Edit",
@@ -212,7 +210,6 @@ func TestRun_AllRetriesFail(t *testing.T) {
 	cfg := &config.Config{
 		SystemPrompt: "Fix the bug",
 		Model:        "sonnet",
-		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "implementation",
 		MaxRetries:   2,
 		AllowedTools: "Read,Write,Edit",

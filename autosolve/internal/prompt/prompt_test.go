@@ -12,7 +12,7 @@ func TestBuild_Assessment(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		SystemPrompt: "Fix the bug in foo.go",
-		BlockedPaths: []string{".github/workflows/"},
+		BlockedPaths: []string{".github/"},
 		FooterType:   "assessment",
 	}
 
@@ -31,7 +31,7 @@ func TestBuild_Assessment(t *testing.T) {
 	checks := []string{
 		"system_instruction",
 		"BLOCKED",
-		".github/workflows/",
+		".github/",
 		"<task>",
 		"Fix the bug in foo.go",
 		"</task>",
@@ -82,7 +82,7 @@ func TestBuild_WithSkillFile(t *testing.T) {
 
 	cfg := &config.Config{
 		Skill:        skillFile,
-		BlockedPaths: []string{".github/workflows/"},
+		BlockedPaths: []string{".github/"},
 		FooterType:   "implementation",
 	}
 
@@ -101,7 +101,7 @@ func TestBuild_CustomAssessmentCriteria(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		SystemPrompt:       "Check this",
-		BlockedPaths:       []string{".github/workflows/"},
+		BlockedPaths:       []string{".github/"},
 		FooterType:         "assessment",
 		AssessmentCriteria: "Custom criteria here",
 	}
@@ -126,7 +126,7 @@ func TestBuild_WithContextVars(t *testing.T) {
 	cfg := &config.Config{
 		SystemPrompt: "Fix it",
 		ContextVars:  []string{"ISSUE_TITLE", "ISSUE_BODY"},
-		BlockedPaths: []string{".github/workflows/"},
+		BlockedPaths: []string{".github/"},
 		FooterType:   "implementation",
 	}
 
@@ -158,7 +158,7 @@ func TestBuild_NoContextVars(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		SystemPrompt: "Fix it",
-		BlockedPaths: []string{".github/workflows/"},
+		BlockedPaths: []string{".github/"},
 		FooterType:   "implementation",
 	}
 
@@ -177,7 +177,7 @@ func TestBuild_SkillFileNotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Skill:        "/nonexistent/skill.md",
-		BlockedPaths: []string{".github/workflows/"},
+		BlockedPaths: []string{".github/"},
 		FooterType:   "implementation",
 	}
 
