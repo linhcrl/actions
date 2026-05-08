@@ -52,8 +52,8 @@ func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.R
 	data, _ := json.Marshal(out)
 	os.WriteFile(opts.OutputFile, data, 0644)
 
-	// Simulate Claude writing metadata files on success
-	if strings.Contains(resultText, "SUCCESS") {
+	// Simulate Claude writing metadata files on implementation success
+	if strings.Contains(resultText, "IMPLEMENTATION_RESULT - SUCCESS") {
 		os.WriteFile(".autosolve-commit-message", []byte("fix: mock commit"), 0644)
 		os.WriteFile(".autosolve-pr-body", []byte("Mock PR body."), 0644)
 	}
@@ -93,6 +93,7 @@ func (m *mockGHClient) BranchExists(_ context.Context, _, _ string) (bool, error
 
 type mockGitClient struct {
 	hasStagedChanges bool
+	resetHeadCalls   int
 }
 
 func (m *mockGitClient) Diff(args ...string) (string, error) {
@@ -115,16 +116,23 @@ func (m *mockGitClient) Checkout(args ...string) error          { return nil }
 func (m *mockGitClient) Add(args ...string) error               { return nil }
 func (m *mockGitClient) Commit(message string) error            { return nil }
 func (m *mockGitClient) Push(args ...string) error              { return nil }
-func (m *mockGitClient) ResetHead() error                       { return nil }
+func (m *mockGitClient) ResetHead() error                       { m.resetHeadCalls++; return nil }
 
 func init() {
 	RetryDelay = 0 * time.Millisecond
 }
 
+func cleanupAutosolveFiles(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		os.Remove(".autosolve-commit-message")
+		os.Remove(".autosolve-pr-body")
+	})
+}
+
 func TestRun_Success(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Cleanup(func() { os.Remove(".autosolve-commit-message") })
-	t.Cleanup(func() { os.Remove(".autosolve-pr-body") })
+	cleanupAutosolveFiles(t)
 	t.Setenv("GITHUB_OUTPUT", tmpDir+"/output")
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
@@ -160,8 +168,7 @@ func TestRun_Success(t *testing.T) {
 
 func TestRun_RetryThenSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
-	t.Cleanup(func() { os.Remove(".autosolve-commit-message") })
-	t.Cleanup(func() { os.Remove(".autosolve-pr-body") })
+	cleanupAutosolveFiles(t)
 	t.Setenv("GITHUB_OUTPUT", tmpDir+"/output")
 	t.Setenv("GITHUB_STEP_SUMMARY", tmpDir+"/summary")
 
@@ -340,4 +347,62 @@ func TestBuildPRBody(t *testing.T) {
 			t.Errorf("unexpected body: %q", body)
 		}
 	})
+}
+
+func TestAISecurityReview_NothingStaged(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{Model: "sonnet"}
+	runner := &mockRunner{}
+	gitClient := &mockGitClient{hasStagedChanges: false}
+	var tracker claude.UsageTracker
+
+	err := aiSecurityReview(context.Background(), cfg, runner, gitClient, tmpDir, &tracker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runner.calls != 0 {
+		t.Errorf("expected no runner calls when nothing staged, got %d", runner.calls)
+	}
+}
+
+func TestAISecurityReview_Pass(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{Model: "sonnet"}
+	runner := &mockRunner{
+		results: []string{"No issues found.\n\nSECURITY_REVIEW - SUCCESS"},
+	}
+	gitClient := &mockGitClient{hasStagedChanges: true}
+	var tracker claude.UsageTracker
+
+	err := aiSecurityReview(context.Background(), cfg, runner, gitClient, tmpDir, &tracker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runner.calls != 1 {
+		t.Errorf("expected 1 runner call, got %d", runner.calls)
+	}
+	if gitClient.resetHeadCalls != 0 {
+		t.Errorf("expected no reset on success, got %d", gitClient.resetHeadCalls)
+	}
+}
+
+func TestAISecurityReview_Fail(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := &config.Config{Model: "sonnet"}
+	runner := &mockRunner{
+		results: []string{"Found hardcoded API key.\n\nSECURITY_REVIEW - FAILED"},
+	}
+	gitClient := &mockGitClient{hasStagedChanges: true}
+	var tracker claude.UsageTracker
+
+	err := aiSecurityReview(context.Background(), cfg, runner, gitClient, tmpDir, &tracker)
+	if err == nil {
+		t.Fatal("expected error when security review fails")
+	}
+	if !strings.Contains(err.Error(), "sensitive content") {
+		t.Errorf("expected 'sensitive content' error, got: %v", err)
+	}
+	if gitClient.resetHeadCalls != 1 {
+		t.Errorf("expected 1 reset call on failure, got %d", gitClient.resetHeadCalls)
+	}
 }
