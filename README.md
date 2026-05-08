@@ -134,7 +134,7 @@ PROCEED or SKIP decision with reasoning.
 | `system_prompt`       | **one required**     | Trusted instructions for Claude describing the task to assess. Do not embed untrusted user input here — use `context_vars` instead. At least one of `system_prompt` or `skill` is required. |
 | `skill`               | **one required**     | Path to a skill/prompt file relative to `GITHUB_WORKSPACE`. At least one of `system_prompt` or `skill` is required.                                  |
 | `context_vars`        | `""`                 | Comma-separated list of environment variable names to pass through to Claude for untrusted user input (e.g., issue titles/bodies)                     |
-| `assessment_criteria` | `""`                 | Custom criteria for the assessment. Uses default criteria if not provided.                                                                            |
+| `assessment_criteria` | [see default](autosolve/internal/prompt/templates/default-assessment-criteria.md) | Trusted criteria for the assessment. Do not embed untrusted user input. |
 | `model`               | `claude-opus-4-6`    | Claude model ID                                                                                                                                       |
 | `blocked_paths`       | `""`                 | Comma-separated path prefixes that cannot be modified (case-sensitive). `.github/` is always blocked.                                                                 |
 | `log_level`           | `error`              | Controls Claude output in the step log: `error` (status only), `info` (result summary, permission denial warnings), `debug` (stream everything).     |

@@ -15,14 +15,6 @@ import (
 //go:embed templates
 var templateFS embed.FS
 
-const defaultAssessmentCriteria = `- PROCEED if: the task is clear, affects a bounded set of files, can be
-  delivered as a single commit, and does not require architectural decisions
-  or human judgment on product direction.
-- SKIP if: the task is ambiguous, requires design decisions or RFC, affects
-  many unrelated components, requires human judgment, or would benefit from
-  being split into multiple commits (e.g., separate refactoring from
-  behavioral changes, or independent fixes across unrelated subsystems).`
-
 // Build assembles the full prompt file and returns its path.
 func Build(cfg *config.Config, tmpDir string) (string, error) {
 	var b strings.Builder
@@ -79,7 +71,11 @@ func Build(cfg *config.Config, tmpDir string) (string, error) {
 		}
 		criteria := cfg.AssessmentCriteria
 		if criteria == "" {
-			criteria = defaultAssessmentCriteria
+			c, err := loadTemplate("default-assessment-criteria.md")
+			if err != nil {
+				return "", fmt.Errorf("loading default assessment criteria: %w", err)
+			}
+			criteria = strings.TrimSpace(c)
 		}
 		footer = strings.ReplaceAll(footer, "{{ASSESSMENT_CRITERIA}}", criteria)
 		b.WriteString(footer)
