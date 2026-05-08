@@ -74,6 +74,10 @@ func Check(gitClient git.Client, blockedPaths []string) ([]string, error) {
 		}
 		// If the real path differs from the expected path, a symlink is involved
 		if realPath != absPath {
+			if !strings.HasPrefix(realPath, repoRoot+string(filepath.Separator)) {
+				violations = append(violations, fmt.Sprintf("symlink escapes repo root: %s -> %s", file, realPath))
+				continue
+			}
 			for _, blocked := range blockedPaths {
 				blockedAbs := filepath.Clean(filepath.Join(repoRoot, blocked))
 				if strings.HasPrefix(realPath, blockedAbs+string(filepath.Separator)) || realPath == blockedAbs {

@@ -3,6 +3,7 @@ package security
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -227,6 +228,71 @@ func TestCheck_SymlinkToBlockedPath(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected symlink violation, got: %v", violations)
+	}
+}
+
+func TestCheck_SymlinkEscapesRepoRoot(t *testing.T) {
+	dir := setupGitRepo(t)
+	chdir(t, dir)
+
+	// Create a file outside the repo
+	outsideDir := t.TempDir()
+	if err := os.WriteFile(outsideDir+"/escape.txt", []byte("escaped"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a symlink with an absolute path outside the repo root
+	if err := os.Symlink(outsideDir+"/escape.txt", "sneaky-escape.txt"); err != nil {
+		t.Fatal(err)
+	}
+
+	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, v := range violations {
+		if strings.Contains(v, "symlink escapes repo root") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected symlink-escapes-repo-root violation, got: %v", violations)
+	}
+}
+
+func TestCheck_SymlinkEscapesRepoRoot_Relative(t *testing.T) {
+	dir := setupGitRepo(t)
+	chdir(t, dir)
+
+	// Create a file outside the repo via a relative path (../../)
+	outsideDir := t.TempDir()
+	if err := os.WriteFile(outsideDir+"/escape.txt", []byte("escaped"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Compute a relative path from the repo to the outside file
+	relPath, err := filepath.Rel(dir, outsideDir+"/escape.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink(relPath, "relative-escape.txt"); err != nil {
+		t.Fatal(err)
+	}
+
+	violations, err := Check(&git.CLIClient{}, []string{".github/workflows/"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, v := range violations {
+		if strings.Contains(v, "symlink escapes repo root") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected symlink-escapes-repo-root violation for relative symlink, got: %v", violations)
 	}
 }
 
