@@ -23,7 +23,7 @@ func Run(ctx context.Context, cfg *config.Config, runner claude.Runner, tmpDir s
 
 	action.LogInfo(fmt.Sprintf("Running assessment with model: %s", cfg.Model))
 
-	outputFile := filepath.Join(tmpDir, "assessment.json")
+	outputFile := filepath.Join(tmpDir, "assess-claude-output.json")
 
 	var tracker claude.UsageTracker
 

@@ -66,7 +66,7 @@ func Run(
 
 	action.LogInfo(fmt.Sprintf("Running implementation with model: %s (max retries: %d)", cfg.Model, cfg.MaxRetries))
 
-	outputFile := filepath.Join(tmpDir, "implementation.json")
+	outputFile := filepath.Join(tmpDir, "implement-claude-output.json")
 
 	var (
 		result     *claude.Result
@@ -517,7 +517,7 @@ func aiSecurityReview(
 		return nil
 	}
 
-	outputFile := filepath.Join(tmpDir, "security_review.json")
+	outputFile := filepath.Join(tmpDir, "security-review-claude-output.json")
 	result, err := runner.Run(ctx, claude.RunOptions{
 		Model:        cfg.SecurityReviewModel(),
 		AllowedTools: "Bash(git diff:*),Bash(git show:*),Read,Grep,Glob",
