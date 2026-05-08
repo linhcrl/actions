@@ -64,7 +64,7 @@ func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.R
 		ExitCode:   exitCode,
 	}
 	if resultText == "" {
-		return result, fmt.Errorf("claude produced empty result (exit code %d)", exitCode)
+		return result, fmt.Errorf("%w (exit code %d)", claude.ErrEmptyResult, exitCode)
 	}
 	return result, nil
 }

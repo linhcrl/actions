@@ -3,6 +3,7 @@ package assess
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -42,7 +43,7 @@ func (m *mockRunner) Run(ctx context.Context, opts claude.RunOptions) (*claude.R
 		ExitCode:   m.exitCode,
 	}
 	if m.resultText == "" {
-		return result, fmt.Errorf("claude produced empty result (exit code %d)", m.exitCode)
+		return result, fmt.Errorf("%w (exit code %d)", claude.ErrEmptyResult, m.exitCode)
 	}
 	return result, nil
 }
@@ -55,7 +56,6 @@ func TestRun_Proceed(t *testing.T) {
 	cfg := &config.Config{
 		SystemPrompt: "Fix the bug",
 		Model:        "sonnet",
-		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "assessment",
 	}
 
@@ -83,7 +83,6 @@ func TestRun_Skip(t *testing.T) {
 	cfg := &config.Config{
 		SystemPrompt: "Refactor everything",
 		Model:        "sonnet",
-		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "assessment",
 	}
 
@@ -111,7 +110,6 @@ func TestRun_NoResult(t *testing.T) {
 	cfg := &config.Config{
 		SystemPrompt: "Fix it",
 		Model:        "sonnet",
-		BlockedPaths: []string{".github/workflows/"},
 		FooterType:   "assessment",
 	}
 
@@ -121,7 +119,10 @@ func TestRun_NoResult(t *testing.T) {
 
 	err := Run(context.Background(), cfg, runner, tmpDir)
 	if err == nil {
-		t.Error("expected error when no result")
+		t.Fatal("expected error when no result")
+	}
+	if !errors.Is(err, claude.ErrEmptyResult) {
+		t.Errorf("expected ErrEmptyResult, got: %v", err)
 	}
 }
 

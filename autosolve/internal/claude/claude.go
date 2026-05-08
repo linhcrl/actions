@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,6 +17,9 @@ import (
 
 	"github.com/cockroachdb/actions/autosolve/internal/action"
 )
+
+// ErrEmptyResult is returned when Claude produces no result text.
+var ErrEmptyResult = errors.New("claude produced empty result")
 
 // Runner invokes the Claude CLI.
 type Runner interface {
@@ -308,7 +312,7 @@ func (r *CLIRunner) Run(ctx context.Context, opts RunOptions) (*Result, error) {
 	}
 	parsed.ExitCode = result.ExitCode
 	if parsed.ResultText == "" {
-		return parsed, fmt.Errorf("claude produced empty result (exit code %d)", parsed.ExitCode)
+		return parsed, fmt.Errorf("%w (exit code %d)", ErrEmptyResult, parsed.ExitCode)
 	}
 	return parsed, nil
 }
