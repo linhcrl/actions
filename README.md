@@ -185,7 +185,7 @@ enforcement, sensitive file detection, and token usage tracking.
 | `system_prompt`      | **one required**                 | Trusted instructions for Claude describing the task. Do not embed untrusted user input — use `context_vars`. At least one of `system_prompt` or `skill` is required. |
 | `skill`              | **one required**                 | Path to a skill/prompt file relative to `GITHUB_WORKSPACE`. At least one of `system_prompt` or `skill` is required. |
 | `context_vars`       | `""`                             | Comma-separated list of environment variable names to pass through to Claude for untrusted user input           |
-| `allowed_tools`      | `Read,Write,Edit,Grep,Glob,...`  | Claude `--allowedTools` string (defaults include git, go build/test/vet, and make)                              |
+| `allowed_tools`      | [see below](#allowed_tools-default) | Claude `--allowedTools` string                                                                               |
 | `model`              | `claude-opus-4-6`                | Claude model ID                                                                                                  |
 | `max_retries`        | `3`                              | Maximum implementation attempts                                                                                  |
 | `pr_target_repo`     | `${{ github.repository }}`       | Repository where the PR is created (`owner/repo`). Set this when the PR should target a different repo than the one running the workflow. |
@@ -207,6 +207,14 @@ enforcement, sensitive file detection, and token usage tracking.
 | `pr_footer`          | [see below](#pr_footer-default)  | Footer appended to the PR body                                                                                   |
 | `log_level`          | `error`                          | Controls Claude output in the step log: `error` (status only), `info` (result summary, permission denial warnings), `debug` (stream everything). |
 | `working_directory`  | `.`                              | Directory to run in (relative to workspace root)                                                                 |
+
+<a id="allowed_tools-default"></a>
+> Default `allowed_tools`:
+> ```
+> Read,Write,Edit,Grep,Glob,
+> Bash(git add:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),
+> Bash(go build:*),Bash(go test:*),Bash(go vet:*),Bash(make:*)
+> ```
 
 <a id="pr_footer-default"></a>
 > Default `pr_footer`:
