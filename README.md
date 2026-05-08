@@ -131,8 +131,8 @@ PROCEED or SKIP decision with reasoning.
 | Name                  | Default              | Description                                                                                                                                           |
 | --------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `claude_cli_version`  | `2.1.79`             | Claude CLI version to install (e.g. `2.1.79` or `latest`)                                                                                            |
-| `system_prompt`       | `""`                 | Trusted instructions for Claude describing the task to assess. Do not embed untrusted user input here — use `context_vars` instead.                   |
-| `skill`               | `""`                 | Path to a skill/prompt file relative to the repo root                                                                                                 |
+| `system_prompt`       | **one required**     | Trusted instructions for Claude describing the task to assess. Do not embed untrusted user input here — use `context_vars` instead. At least one of `system_prompt` or `skill` is required. |
+| `skill`               | **one required**     | Path to a skill/prompt file relative to `working_directory`. At least one of `system_prompt` or `skill` is required.                                  |
 | `context_vars`        | `""`                 | Comma-separated list of environment variable names to pass through to Claude for untrusted user input (e.g., issue titles/bodies)                     |
 | `assessment_criteria` | `""`                 | Custom criteria for the assessment. Uses default criteria if not provided.                                                                            |
 | `model`               | `claude-opus-4-6`    | Claude model ID                                                                                                                                       |
@@ -182,8 +182,8 @@ enforcement, sensitive file detection, and token usage tracking.
 | Name                 | Default                          | Description                                                                                                     |
 | -------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `claude_cli_version` | `2.1.79`                         | Claude CLI version to install (e.g. `2.1.79` or `latest`)                                                      |
-| `system_prompt`      | `""`                             | Trusted instructions for Claude describing the task. Do not embed untrusted user input — use `context_vars`.    |
-| `skill`              | `""`                             | Path to a skill/prompt file relative to the repo root                                                           |
+| `system_prompt`      | **one required**                 | Trusted instructions for Claude describing the task. Do not embed untrusted user input — use `context_vars`. At least one of `system_prompt` or `skill` is required. |
+| `skill`              | **one required**                 | Path to a skill/prompt file relative to `working_directory`. At least one of `system_prompt` or `skill` is required. |
 | `context_vars`       | `""`                             | Comma-separated list of environment variable names to pass through to Claude for untrusted user input           |
 | `allowed_tools`      | `Read,Write,Edit,Grep,Glob,...`  | Claude `--allowedTools` string (defaults include git, go build/test/vet, and make)                              |
 | `model`              | `claude-opus-4-6`                | Claude model ID                                                                                                  |
@@ -204,9 +204,18 @@ enforcement, sensitive file detection, and token usage tracking.
 | `branch_prefix`      | `autosolve/`                     | Prefix for the branch name                                                                                       |
 | `branch_suffix`      | `""`                             | Suffix for branch name. Defaults to timestamp.                                                                   |
 | `commit_signature`   | `Co-Authored-By: Claude <noreply@anthropic.com>` | Signature line appended to commit messages                                                        |
-| `pr_footer`          | *(auto-generated attribution)*   | Footer appended to the PR body                                                                                   |
+| `pr_footer`          | [see below](#pr_footer-default)  | Footer appended to the PR body                                                                                   |
 | `log_level`          | `error`                          | Controls Claude output in the step log: `error` (status only), `info` (result summary, permission denial warnings), `debug` (stream everything). |
 | `working_directory`  | `.`                              | Directory to run in (relative to workspace root)                                                                 |
+
+<a id="pr_footer-default"></a>
+> Default `pr_footer`:
+> ```
+> ---
+>
+> *This PR was auto-generated by [claude-autosolve-action](https://github.com/cockroachdb/actions) using Claude Code.*
+> *Please review carefully before approving.*
+> ```
 
 **Outputs:**
 
