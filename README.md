@@ -245,18 +245,21 @@ enforcement, sensitive file detection, and token usage tracking.
 <a id="token-permissions"></a>
 **Token permissions:**
 
-| Token              | Required scopes                                                  |
-| ------------------ | ---------------------------------------------------------------- |
-| `fork_push_token`  | `contents: write` on the fork repository                         |
-| `pr_create_token`  | `pull_requests: write` on the target repository                  |
+If the forked repo is public, fine grained tokens can be used. Otherwise a
+classic token is required.  This is because in order to create a PR, the PAT
+must have write on the target and read on the fork.
 
-Label auto-creation (`pr_labels`) requires `issues: write` on the target repo.
-If the token lacks this permission, the action logs a warning and continues —
-the PR is still created, just without labels. Pre-create labels manually to
-avoid the warning.
+| Token              | Fine-grained                                | Classic |
+| ------------------ | ------------------------------------------- | ------- |
+| `fork_push_token`  | `contents: write` on the fork repository    | `repo`  |
+| `pr_create_token`  | `pull_requests: write` on the target repository | `repo`  |
 
-For organizations using SAML/SSO, the PAT must be authorized for the
-organization that owns the target repository. See
+Applying labels (`pr_labels`) requires `issues: write` on the target repo
+(already covered by `repo` for classic tokens). If the token lacks this
+permission, the action logs a warning and creates the PR without labels.
+
+For organizations using SAML/SSO, if a classic token is used, it must be
+authorized for the organization that owns the target repository. See
 [GitHub docs on SSO authorization](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-saml-single-sign-on/authorizing-a-personal-access-token-for-use-with-saml-single-sign-on).
 
 ### get-workflow-ref
