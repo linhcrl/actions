@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -128,8 +129,8 @@ func LoadImplementConfig() (*Config, error) {
 	// Remove tokens from the environment so they are not inherited by
 	// child processes (e.g. Claude CLI). The values are already captured
 	// in the Config struct.
-	os.Unsetenv("INPUT_FORK_PUSH_TOKEN")
-	os.Unsetenv("INPUT_PR_CREATE_TOKEN")
+	_ = os.Unsetenv("INPUT_FORK_PUSH_TOKEN")
+	_ = os.Unsetenv("INPUT_PR_CREATE_TOKEN")
 
 	return c, nil
 }
@@ -208,21 +209,12 @@ func ParseBlockedPaths(raw string) []string {
 	}
 	var extra []string
 	for p := range paths {
-		if !contains(requiredBlockedPaths, p) {
+		if !slices.Contains(requiredBlockedPaths, p) {
 			extra = append(extra, p)
 		}
 	}
 	sort.Strings(extra)
 	return append(result, extra...)
-}
-
-func contains(ss []string, s string) bool {
-	for _, v := range ss {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }
 
 // SecurityReviewModel returns a lightweight model suitable for the AI

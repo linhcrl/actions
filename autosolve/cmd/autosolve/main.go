@@ -93,6 +93,8 @@ func ensureTmpDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("creating temp dir: %w", err)
 	}
-	os.Setenv("AUTOSOLVE_TMPDIR", dir)
+	if err := os.Setenv("AUTOSOLVE_TMPDIR", dir); err != nil {
+		return "", fmt.Errorf("setting AUTOSOLVE_TMPDIR: %w", err)
+	}
 	return dir, nil
 }
