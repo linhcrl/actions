@@ -58,14 +58,6 @@ inputs:
     description: Whether to create the PR as a draft.
     required: false
     default: "true"
-  pr_title:
-    description: PR title. If empty, derived from first commit subject line.
-    required: false
-    default: ""
-  pr_body_template:
-    description: "Template for the PR body. Supports placeholders: {{SUMMARY}}, {{BRANCH}}."
-    required: false
-    default: ""
   fork_owner:
     description: GitHub username or org that owns the fork.
     required: false
@@ -206,8 +198,6 @@ runs:
         INPUT_PR_BASE_BRANCH: ${{ inputs.pr_base_branch }}
         INPUT_PR_LABELS: ${{ inputs.pr_labels }}
         INPUT_PR_DRAFT: ${{ inputs.pr_draft }}
-        INPUT_PR_TITLE: ${{ inputs.pr_title }}
-        INPUT_PR_BODY_TEMPLATE: ${{ inputs.pr_body_template }}
         INPUT_FORK_OWNER: ${{ inputs.fork_owner }}
         INPUT_FORK_REPO: ${{ inputs.fork_repo }}
         INPUT_FORK_PUSH_TOKEN: ${{ inputs.fork_push_token }}

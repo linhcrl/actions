@@ -192,8 +192,6 @@ enforcement, sensitive file detection, and token usage tracking.
 | `pr_base_branch`     | `main`                           | Base branch for the PR                                                                                           |
 | `pr_labels`          | `autosolve`                      | Comma-separated labels to apply to the PR                                                                        |
 | `pr_draft`           | `true`                           | Whether to create the PR as a draft                                                                              |
-| `pr_title`           | `""`                             | PR title. If empty, derived from the first commit subject line.                                                  |
-| `pr_body_template`   | `""`                             | Template for the PR body. Supports `{{SUMMARY}}` and `{{BRANCH}}` placeholders.                                 |
 | `fork_owner`         | **required**                     | GitHub username or org that owns the fork                                                                        |
 | `fork_repo`          | **required**                     | Repository name of the fork                                                                                      |
 | `fork_push_token`    | **required**                     | PAT with `contents: write` on the fork repository                                                                |

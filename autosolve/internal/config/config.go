@@ -37,21 +37,19 @@ type Config struct {
 	AllowedTools string
 
 	// PR creation
-	ForkOwner        string
-	ForkRepo         string
-	ForkPushToken    string
-	PRCreateToken    string
-	PRBaseBranch     string
-	PRLabels         string
-	PRDraft          bool
-	PullRequestTitle string
-	PRBodyTemplate   string
-	PRFooter         string
-	GitUserName      string
-	GitUserEmail     string
-	BranchPrefix     string
-	BranchSuffix     string
-	CommitSignature  string
+	ForkOwner       string
+	ForkRepo        string
+	ForkPushToken   string
+	PRCreateToken   string
+	PRBaseBranch    string
+	PRLabels        string
+	PRDraft         bool
+	PRFooter        string
+	GitUserName     string
+	GitUserEmail    string
+	BranchPrefix    string
+	BranchSuffix    string
+	CommitSignature string
 
 	// GitHub context
 	GithubRepository string
@@ -94,30 +92,28 @@ func LoadImplementConfig() (*Config, error) {
 	}
 
 	c := &Config{
-		SystemPrompt:     os.Getenv("INPUT_SYSTEM_PROMPT"),
-		Skill:            os.Getenv("INPUT_SKILL"),
-		ContextVars:      parseContextVars(os.Getenv("INPUT_CONTEXT_VARS")),
-		Model:            os.Getenv("INPUT_MODEL"),
-		BlockedPaths:     ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
-		FooterType:       "implementation",
-		LogLevel:         logLevel,
-		MaxRetries:       envOrDefaultInt("INPUT_MAX_RETRIES", 3),
-		AllowedTools:     envOrDefault("INPUT_ALLOWED_TOOLS", "Read,Write,Edit,Grep,Glob,Bash(git add:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(go build:*),Bash(go test:*),Bash(go vet:*),Bash(make:*)"),
-		ForkOwner:        os.Getenv("INPUT_FORK_OWNER"),
-		ForkRepo:         os.Getenv("INPUT_FORK_REPO"),
-		ForkPushToken:    os.Getenv("INPUT_FORK_PUSH_TOKEN"),
-		PRCreateToken:    os.Getenv("INPUT_PR_CREATE_TOKEN"),
-		PRBaseBranch:     os.Getenv("INPUT_PR_BASE_BRANCH"),
-		PRLabels:         envOrDefault("INPUT_PR_LABELS", "autosolve"),
-		PRDraft:          prDraft,
-		PullRequestTitle: os.Getenv("INPUT_PR_TITLE"),
-		PRBodyTemplate:   os.Getenv("INPUT_PR_BODY_TEMPLATE"),
-		PRFooter:         envOrDefault("INPUT_PR_FOOTER", defaultPRFooter),
-		GitUserName:      envOrDefault("INPUT_GIT_USER_NAME", "autosolve[bot]"),
-		GitUserEmail:     envOrDefault("INPUT_GIT_USER_EMAIL", "autosolve[bot]@users.noreply.github.com"),
-		BranchPrefix:     envOrDefault("INPUT_BRANCH_PREFIX", defaultBranchPrefix),
-		BranchSuffix:     os.Getenv("INPUT_BRANCH_SUFFIX"),
-		CommitSignature:  envOrDefault("INPUT_COMMIT_SIGNATURE", defaultCommitSignature),
+		SystemPrompt:    os.Getenv("INPUT_SYSTEM_PROMPT"),
+		Skill:           os.Getenv("INPUT_SKILL"),
+		ContextVars:     parseContextVars(os.Getenv("INPUT_CONTEXT_VARS")),
+		Model:           os.Getenv("INPUT_MODEL"),
+		BlockedPaths:    ParseBlockedPaths(os.Getenv("INPUT_BLOCKED_PATHS")),
+		FooterType:      "implementation",
+		LogLevel:        logLevel,
+		MaxRetries:      envOrDefaultInt("INPUT_MAX_RETRIES", 3),
+		AllowedTools:    envOrDefault("INPUT_ALLOWED_TOOLS", "Read,Write,Edit,Grep,Glob,Bash(git add:*),Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(go build:*),Bash(go test:*),Bash(go vet:*),Bash(make:*)"),
+		ForkOwner:       os.Getenv("INPUT_FORK_OWNER"),
+		ForkRepo:        os.Getenv("INPUT_FORK_REPO"),
+		ForkPushToken:   os.Getenv("INPUT_FORK_PUSH_TOKEN"),
+		PRCreateToken:   os.Getenv("INPUT_PR_CREATE_TOKEN"),
+		PRBaseBranch:    os.Getenv("INPUT_PR_BASE_BRANCH"),
+		PRLabels:        envOrDefault("INPUT_PR_LABELS", "autosolve"),
+		PRDraft:         prDraft,
+		PRFooter:        envOrDefault("INPUT_PR_FOOTER", defaultPRFooter),
+		GitUserName:     envOrDefault("INPUT_GIT_USER_NAME", "autosolve[bot]"),
+		GitUserEmail:    envOrDefault("INPUT_GIT_USER_EMAIL", "autosolve[bot]@users.noreply.github.com"),
+		BranchPrefix:    envOrDefault("INPUT_BRANCH_PREFIX", defaultBranchPrefix),
+		BranchSuffix:    os.Getenv("INPUT_BRANCH_SUFFIX"),
+		CommitSignature: envOrDefault("INPUT_COMMIT_SIGNATURE", defaultCommitSignature),
 
 		GithubRepository: os.Getenv("GITHUB_REPOSITORY"),
 		PRTargetRepo:     envOrDefault("INPUT_PR_TARGET_REPO", os.Getenv("GITHUB_REPOSITORY")),

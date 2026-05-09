@@ -315,23 +315,12 @@ func TestReadCommitMessage(t *testing.T) {
 }
 
 func TestBuildPRBody(t *testing.T) {
-	t.Run("uses template with placeholders", func(t *testing.T) {
-		cfg := &config.Config{
-			PRBodyTemplate: "Branch: {{BRANCH}}\nSummary: {{SUMMARY}}",
-			PRFooter:       "-- footer",
-		}
-		body := buildPRBody(cfg, t.TempDir(), "autosolve/fix-1", "Fixed it.\nIMPLEMENTATION_RESULT - SUCCESS")
-		if body != "Branch: autosolve/fix-1\nSummary: Fixed it.\n\n-- footer" {
-			t.Errorf("unexpected body: %q", body)
-		}
-	})
-
-	t.Run("uses pr-body file when no template", func(t *testing.T) {
+	t.Run("reads pr-body file", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		os.WriteFile(filepath.Join(tmpDir, "autosolve-pr-body"), []byte("Custom PR body from Claude."), 0644)
 
 		cfg := &config.Config{PRFooter: "-- footer"}
-		body := buildPRBody(cfg, tmpDir, "autosolve/fix-1", "result text")
+		body := buildPRBody(cfg, tmpDir)
 		if body != "Custom PR body from Claude.\n\n-- footer" {
 			t.Errorf("unexpected body: %q", body)
 		}
@@ -339,7 +328,7 @@ func TestBuildPRBody(t *testing.T) {
 
 	t.Run("no template or file appends footer only", func(t *testing.T) {
 		cfg := &config.Config{PRFooter: "-- footer"}
-		body := buildPRBody(cfg, t.TempDir(), "autosolve/fix-1", "result text")
+		body := buildPRBody(cfg, t.TempDir())
 		if body != "\n\n-- footer" {
 			t.Errorf("unexpected body: %q", body)
 		}

@@ -139,14 +139,9 @@ func Run(
 				action.LogWarning(fmt.Sprintf("Attempt %d succeeded but .autosolve-commit-message was not written - retrying", attempt))
 				continue
 			}
-			// If no PR body template is configured, Claude must write
-			// .autosolve-pr-body. Treat a missing file as an incomplete
-			// attempt so we retry rather than falling back to a low-quality body.
-			if cfg.PRBodyTemplate == "" {
-				if _, statErr := os.Stat(".autosolve-pr-body"); statErr != nil {
-					action.LogWarning(fmt.Sprintf("Attempt %d succeeded but .autosolve-pr-body was not written - retrying", attempt))
-					continue
-				}
+			if _, statErr := os.Stat(".autosolve-pr-body"); statErr != nil {
+				action.LogWarning(fmt.Sprintf("Attempt %d succeeded but .autosolve-pr-body was not written - retrying", attempt))
+				continue
 			}
 			action.LogNotice(fmt.Sprintf("Implementation succeeded on attempt %d", attempt))
 			implStatus = "SUCCESS"
@@ -207,7 +202,7 @@ func Run(
 			return fmt.Errorf("PR creation failed: %w", err)
 		}
 		var prErr error
-		prURL, prErr = createPR(ctx, cfg, ghClient, tmpDir, branchName, resultText, title)
+		prURL, prErr = createPR(ctx, cfg, ghClient, tmpDir, branchName, title)
 		if prErr != nil {
 			_ = writeOutputs("FAILED", "", "", resultText, &tracker)
 			return fmt.Errorf("PR creation failed: %w", prErr)
@@ -341,12 +336,9 @@ func validateChanges(
 func commitAndPush(
 	cfg *config.Config, gitClient git.Client, branchName, commitSubject, commitBody string,
 ) (title string, err error) {
-	title = cfg.PullRequestTitle
+	title = commitSubject
 	if title == "" {
-		title = commitSubject
-	}
-	if title == "" {
-		return "", fmt.Errorf("no PR title available: set pr_title or ensure Claude writes .autosolve-commit-message")
+		return "", fmt.Errorf("no PR title available: ensure Claude writes .autosolve-commit-message")
 	}
 
 	commitMsg := title
@@ -366,12 +358,9 @@ func commitAndPush(
 }
 
 func createPR(
-	ctx context.Context,
-	cfg *config.Config,
-	ghClient github.Client,
-	tmpDir, branchName, resultText, title string,
+	ctx context.Context, cfg *config.Config, ghClient github.Client, tmpDir, branchName, title string,
 ) (string, error) {
-	prBody := buildPRBody(cfg, tmpDir, branchName, resultText)
+	prBody := buildPRBody(cfg, tmpDir)
 
 	// Best-effort label creation: if the token lacks permission, warn and
 	// continue — the PR is still created, just without the label.
@@ -447,19 +436,11 @@ func copyPRBody(tmpDir string) error {
 	return nil
 }
 
-func buildPRBody(cfg *config.Config, tmpDir, branchName, resultText string) string {
+func buildPRBody(cfg *config.Config, tmpDir string) string {
 	var body string
-
-	if cfg.PRBodyTemplate != "" {
-		body = cfg.PRBodyTemplate
-		summary := extractSummary(resultText, "IMPLEMENTATION_RESULT")
-		summary = action.TruncateOutput(200, summary)
-		body = strings.ReplaceAll(body, "{{SUMMARY}}", summary)
-		body = strings.ReplaceAll(body, "{{BRANCH}}", branchName)
-	} else if data, err := os.ReadFile(filepath.Join(tmpDir, "autosolve-pr-body")); err == nil {
+	if data, err := os.ReadFile(filepath.Join(tmpDir, "autosolve-pr-body")); err == nil {
 		body = string(data)
 	}
-
 	body += "\n\n" + cfg.PRFooter
 	return body
 }
