@@ -17,9 +17,9 @@ Breaking changes are prefixed with "Breaking Change: ".
 
 ### Changed
 
-- `create-release-pr` reusable workflow: use a hardcoded commit message format instead
-  of including changelog entries in the commit body, and fix backtick handling in PR
-  descriptions to prevent bash command substitution errors.
+- `create-release-pr` reusable workflow: sync fork before pushing branches (optional
+  force-push via `allow_fork_force_sync`), use hardcoded commit messages, and fix
+  backtick handling in PR descriptions.
 
 ## [0.4.0] - 2026-04-09
 

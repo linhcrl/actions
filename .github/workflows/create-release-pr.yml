@@ -41,6 +41,11 @@ on:
         required: false
         type: string
         default: "github-actions[bot]@users.noreply.github.com"
+      allow_fork_force_sync:
+        description: When false (default), the fork's default branch is fast-forwarded from origin and the run aborts if the fast-forward push is rejected. When true, a rejected fast-forward falls back to a force push that overwrites any commits on the fork's default branch not in origin's default branch.
+        required: false
+        type: boolean
+        default: false
     secrets:
       fork_push_token:
         description: PAT with push access to the fork
@@ -91,6 +96,16 @@ jobs:
         uses: ./release-version-extract
         with:
           changelog-path: ${{ env.REPO_DIR }}/CHANGELOG.md
+
+      - name: Get default branch
+        if: steps.extract-version.outputs.has_unreleased == 'true'
+        id: get-default-branch
+        run: |
+          source ../actions_helpers.sh
+
+          default_branch=$(git branch --show-current)
+          log_notice "Default branch: $default_branch"
+          set_output "default_branch" "$default_branch"
 
       - name: Create branch
         if: steps.extract-version.outputs.has_unreleased == 'true'
@@ -156,6 +171,25 @@ jobs:
           fork_url="https://github.com/$FORK_OWNER/$FORK_REPO.git"
           log_notice "Adding fork remote at $fork_url"
           git remote add fork "$fork_url"
+
+          # Sync fork's default branch with upstream to include any changes from upstream
+          # that the fork doesn't have. This prevents feature branches from appearing to add
+          # files requiring special permissions (e.g., workflows), which would cause permission issues.
+          # First attempt a fast-forward; only force-push if explicitly allowed and fast-forward fails.
+          default_branch="${{ steps.get-default-branch.outputs.default_branch }}"
+          log_notice "Syncing fork's $default_branch with origin/$default_branch"
+
+          if git push fork "origin/$default_branch:$default_branch"; then
+            log_notice "Fork's $default_branch is now in sync with origin (fast-forward)"
+          elif [[ "${{ inputs.allow_fork_force_sync }}" == "true" ]]; then
+            log_warning "Fast-forward rejected; force-pushing to sync fork's $default_branch"
+            git push --force fork "origin/$default_branch:$default_branch"
+            log_notice "Fork's $default_branch is now in sync with origin (force-pushed)"
+          else
+            log_error "Fast-forward rejected and allow_fork_force_sync is not enabled. The fork's $default_branch has diverged from origin/$default_branch."
+            log_error "Either set allow_fork_force_sync: true to overwrite the fork's $default_branch, or manually sync the fork."
+            exit 1
+          fi
 
           branch_name="${{ steps.create-branch.outputs.branch_name }}"
           git push fork "$branch_name"
